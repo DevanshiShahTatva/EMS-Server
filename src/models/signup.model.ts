@@ -18,6 +18,6 @@ const signupSchema = new mongoose.Schema({
   },
 });
 
-const Signup = mongoose.models.Signup || mongoose.model("Signup", signupSchema);
+const Signup = mongoose.models.User || mongoose.model("User", signupSchema);
 
 export default Signup;

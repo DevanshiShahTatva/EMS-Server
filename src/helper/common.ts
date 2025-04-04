@@ -1,12 +1,12 @@
 import { Document, Model } from "mongoose";
-import Signup from "../models/signup.model";
+import User from "../models/signup.model";
 
 interface IModelMap {
   [key: string]: Model<Document>;
 }
 
 const models: IModelMap = {
-  Signup
+  User
 };
 
 export class ApiResponse<T = any> {
