@@ -18,6 +18,14 @@ const signupSchema = new mongoose.Schema({
   },
 });
 
+signupSchema.set("toJSON", {
+  transform: function (_doc, ret, _options) {
+    delete ret.password;
+    delete ret.__v;
+    return ret;
+  },
+});
+
 const Signup = mongoose.models.User || mongoose.model("User", signupSchema);
 
 export default Signup;

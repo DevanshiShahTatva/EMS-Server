@@ -9,7 +9,16 @@ export const registerUser = async (req: Request, res: Response) => {
     const rcResponse = new ApiResponse();
     const sort = { created: -1 };
     const body = req.body;
+    const { name, email, password } = body;
 
+    // empty field validation
+    if (!name || !email || !password) {
+      return throwError(
+        res,
+        "Please fill required data",
+        HTTP_STATUS_CODE.BAD_REQUEST
+      );
+    }
 
     // validation for if email is exists
     const isEmailTaken = await findOne("User", { email: body.email }, sort);
@@ -31,7 +40,7 @@ export const registerUser = async (req: Request, res: Response) => {
     };
 
     rcResponse.data = await create("User", newBody);
-    rcResponse.message = "You are register successfully."
+    rcResponse.message = "You are register successfully.";
     return res.status(rcResponse.status).send(rcResponse);
   } catch (err) {
     return throwError(res);
@@ -43,36 +52,37 @@ export const loginUser = async (req: Request, res: Response) => {
     const rcResponse = new ApiResponse();
     const sort = { created: -1 };
     const body = req.body;
+    const { email, password } = body;
 
-
-    // validation for if email is exists
-    const findUser = await findOne("User", { email: body.email }, sort);
-    if (!findUser) {
+    // empty field validation
+    if (!email || !password) {
       return throwError(
         res,
-        "Email not found",
-        HTTP_STATUS_CODE.NOT_FOUND
+        "Please fill required data",
+        HTTP_STATUS_CODE.BAD_REQUEST
       );
-    };
+    }
+
+    // validation for if email is exists
+    const findUser = await findOne("User", { email: email }, sort);
+    if (!findUser) {
+      return throwError(res, "Email not found", HTTP_STATUS_CODE.NOT_FOUND);
+    }
 
     // encrypt the password
     const isValidPassword = await bcryptjs.compare(
-      body.password,
+      password,
       findUser.password
     );
 
     if (!isValidPassword) {
-      return throwError(
-        res,
-        "Invalid Password",
-        HTTP_STATUS_CODE.BAD_REQUEST
-      );
-    };
+      return throwError(res, "Invalid Password", HTTP_STATUS_CODE.BAD_REQUEST);
+    }
 
     let tokenUser = {
       _id: findUser._id,
       name: findUser.name,
-      email: findUser.email
+      email: findUser.email,
     };
 
     const token = jwt.sign(tokenUser, process.env.TOKEN_SECRET!, {
@@ -81,8 +91,8 @@ export const loginUser = async (req: Request, res: Response) => {
 
     const userDataWithToken = {
       ...tokenUser,
-      token: token
-    }
+      token: token,
+    };
     rcResponse.data = userDataWithToken;
     return res.status(rcResponse.status).send(rcResponse);
   } catch (err) {
