@@ -3,18 +3,21 @@ import dotenv from 'dotenv';
 import cors from "cors";
 import rootRoutes from "./routes/index";
 import { connectToDatabase } from "./config/dbConfig";
+import bodyParser from "body-parser";
 
 dotenv.config();
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.json());
 
-// connect data base
+// Connect to database
 connectToDatabase();
 
-// verify api routes
+// Use routes without global Multer middleware
 app.use("/", rootRoutes);
 
 const PORT = process.env.PORT;
-app.listen(PORT, () => console.log(`server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

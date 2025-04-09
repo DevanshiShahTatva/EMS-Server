@@ -1,12 +1,14 @@
 import { Document, Model } from "mongoose";
 import User from "../models/signup.model";
+import Event from "../models/event.modes";
 
 interface IModelMap {
   [key: string]: Model<Document>;
 }
 
 const models: IModelMap = {
-  User
+  User,
+  Event
 };
 
 export class ApiResponse<T = any> {
@@ -51,16 +53,16 @@ const find = async (
   collection: string,
   query: Record<string, any>,
   sort: any,
-  limit: number,
-  skip: number,
+  // limit: number,
+  // skip: number,
   populates: string[] = []
 ) => {
   try {
     let queryBuilder = models[collection]
       .find(query)
       .sort(sort)
-      .limit(limit)
-      .skip(skip);
+      // .limit(limit)
+      // .skip(skip);
 
     if (populates.length > 0) {
       populates.forEach((field: string) => {
@@ -85,7 +87,7 @@ const create = async (collection: string, data: any) => {
 const findOne = async (
   collection: string,
   query: Record<string, any>,
-  sort: any
+  sort?: any
 ): Promise<any> => {
   try {
     let queryBuilder = models[collection]
