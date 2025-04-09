@@ -8,3 +8,15 @@ export const HTTP_STATUS_CODE = {
 };
 
 export const PASSWORD_SOLT = 10;
+
+export const CATEGORY_ENUM = [
+  "Music",
+  "Art & Culture",
+  "Film & Media",
+  "Education",
+  "Sports",
+  "Food & Drink",
+  "Wellness",
+  "Gaming",
+  "Business",
+];
