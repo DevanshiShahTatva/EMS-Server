@@ -10,7 +10,7 @@
   "license": "ISC",
   "author": "Team Devanshi",
   "type": "commonjs",
-  "main": "index.js",
+  "main": "dist/server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "nodemon src/server.ts",
