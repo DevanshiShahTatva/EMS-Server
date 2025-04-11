@@ -4,7 +4,8 @@ import { CATEGORY_ENUM } from "../utilits/enum";
 interface ITicket {
   type: string;
   price?: number;
-  max_qty: number;
+  totalSeats: number;
+  totalBookedSeats: number;
   description?: string;
 }
 
@@ -35,11 +36,12 @@ const TicketSchema = new Schema<ITicket>({
     type: Number,
     min: 0,
   },
-  max_qty: {
+  totalSeats: {
     type: Number,
     required: true,
     min: 1,
   },
+  totalBookedSeats: { type: Number, default: 0 },
   description: {
     type: String,
   },
