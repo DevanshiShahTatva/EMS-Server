@@ -10,10 +10,12 @@
   "license": "ISC",
   "author": "Team Devanshi",
   "type": "commonjs",
-  "main": "index.js",
+  "main": "dist/server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "nodemon src/server.ts"
+    "dev": "nodemon src/server.ts",
+    "build": "npm install && tsc",
+    "start": "node dist/server.js"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
@@ -21,7 +23,6 @@
     "@types/jsonwebtoken": "^9.0.9",
     "@types/multer": "^1.4.12",
     "@types/node": "^22.14.0",
-    "@types/nodemailer": "^6.4.17",
     "dotenv": "^16.4.7",
     "eslint": "^9.23.0",
     "express": "^5.1.0",
@@ -39,7 +40,6 @@
     "cors": "^2.8.5",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.13.1",
-    "multer": "^1.4.5-lts.2",
-    "nodemailer": "^6.10.0"
+    "multer": "^1.4.5-lts.2"
   }
 }

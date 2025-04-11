@@ -4,7 +4,6 @@ import { HTTP_STATUS_CODE } from "../utilits/enum";
 import bcryptjs from "bcryptjs";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
-import { sendWelcomeEmail } from "../helper/nodemailer";
 
 dotenv.config();
 
@@ -45,7 +44,6 @@ export const registerUser = async (req: Request, res: Response) => {
 
     rcResponse.data = await create("User", newBody);
     rcResponse.message = "You are register successfully.";
-    await sendWelcomeEmail(email, name);
     return res.status(rcResponse.status).send(rcResponse);
   } catch (err) {
     return throwError(res);
@@ -127,7 +125,7 @@ export const loginUser = async (req: Request, res: Response) => {
         token: token,
       };
       rcResponse.data = userDataWithToken;
-      rcResponse.message = "You have login successfully.";
+      rcResponse.message = "You have login successfully."
       return res.status(rcResponse.status).send(rcResponse);
     }
   } catch (err) {
