@@ -105,6 +105,21 @@ const EventSchema = new Schema<IEvent>(
         message: "At least one ticket type is required",
       },
     },
+    images: {
+      type: [
+        {
+          imageId: String,
+          url: String,
+        },
+      ],
+      validate: {
+        validator: function (imgs: Array<{ imageId: string; url: string }>) {
+          return imgs.length >= 1 && imgs.length <= 4;
+        },
+        message: "Must have between 1 and 4 images",
+      },
+      required: true,
+    },
   },
   {
     timestamps: true,
