@@ -2,11 +2,7 @@ import { Request, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { throwError } from "../helper/common";
 
-export const validateToken = (
-  req: Request,
-  res: any,
-  next: NextFunction
-) => {
+export const validateToken = (req: Request, res: any, next: NextFunction) => {
   const token = (req.headers?.token as string) || "";
 
   // check if token is present
