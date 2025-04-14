@@ -1,6 +1,7 @@
 import { Document, Model } from "mongoose";
 import User from "../models/signup.model";
 import Event from "../models/event.modes";
+import TicketBook from "../models/eventBooking.model";
 
 interface IModelMap {
   [key: string]: Model<Document>;
@@ -8,7 +9,8 @@ interface IModelMap {
 
 const models: IModelMap = {
   User,
-  Event
+  Event,
+  TicketBook
 };
 
 export class ApiResponse<T = any> {

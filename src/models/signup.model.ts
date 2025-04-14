@@ -26,6 +26,6 @@ signupSchema.set("toJSON", {
   },
 });
 
-const Signup = mongoose.models.User || mongoose.model("User", signupSchema);
+const User = mongoose.models.User || mongoose.model("User", signupSchema);
 
-export default Signup;
+export default User;
