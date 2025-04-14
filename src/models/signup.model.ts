@@ -16,12 +16,16 @@ const signupSchema = new mongoose.Schema({
     type: String,
     required: [true, "Password is required"],
   },
+  otp: { type: String },
+  otp_expiry: { type: Date },
 });
 
 signupSchema.set("toJSON", {
   transform: function (_doc, ret, _options) {
     delete ret.password;
     delete ret.__v;
+    delete ret.otp;
+    delete ret.otp_expiry;
     return ret;
   },
 });

@@ -36,7 +36,7 @@ export const throwError = (
   rcResponse.message = errorMsg;
   rcResponse.status = status;
   rcResponse.success = false;
-  return res.send(rcResponse).status(rcResponse.status);
+  return res.status(rcResponse.status).send(rcResponse);
 };
 
 export const throwIntenalServerError = (

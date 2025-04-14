@@ -3,6 +3,7 @@ import { Request } from "express";
 import { ApiResponse, find, findOne, throwError } from "../helper/common";
 import jwt from "jsonwebtoken";
 import TicketBook from "../models/eventBooking.model";
+import { HTTP_STATUS_CODE } from "../utilits/enum";
 
 export const postTicketBook = async (req: Request, res: any) => {
   const session = await mongoose.startSession();
@@ -20,24 +21,24 @@ export const postTicketBook = async (req: Request, res: any) => {
 
     // validate body data
     if (![eventId, ticketId, seats].every(Boolean) || seats < 1) {
-      return throwError(res, "Invalida request Parameters", 400);
+      return throwError(res, "Invalida request Parameters", HTTP_STATUS_CODE.BAD_REQUEST);
     }
 
     // validate event and ticket
     const event = await findOne("Event", { _id: eventId });
     if (!event) {
-      return throwError(res, "Event not found", 404);
+      return throwError(res, "Event not found", HTTP_STATUS_CODE.NOT_FOUND);
     }
 
     const selectedTicket = event.tickets.find(
       (ticket: any) => ticket._id.toString() === ticketId
     );
     if (!selectedTicket) {
-      return throwError(res, "Ticket type not found", 404);
+      return throwError(res, "Ticket type not found", HTTP_STATUS_CODE.NOT_FOUND);
     }
 
     if (selectedTicket.totalBookedSeats + seats > selectedTicket.totalSeats) {
-      return throwError(res, "Not enough available seats", 402);
+      return throwError(res, "Not enough available seats", HTTP_STATUS_CODE.BAD_REQUEST);
     }
 
     const updateResult = await mongoose.model("Event").updateOne(
@@ -52,7 +53,7 @@ export const postTicketBook = async (req: Request, res: any) => {
     );
 
     if (updateResult.matchedCount === 0) {
-      return throwError(res, "Failed to update ticket seats", 402);
+      return throwError(res, "Failed to update ticket seats", HTTP_STATUS_CODE.BAD_REQUEST);
     }
 
     rcResponse.data = await TicketBook.create(
@@ -79,7 +80,7 @@ export const postTicketBook = async (req: Request, res: any) => {
     session.endSession();
 
     if (error.code === 11000) {
-      return throwError(res, "Duplicate payment detected", 402);
+      return throwError(res, "Duplicate payment detected", HTTP_STATUS_CODE.BAD_REQUEST);
     }
     return throwError(res);
   }

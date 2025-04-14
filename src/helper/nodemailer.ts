@@ -52,3 +52,18 @@ export const sendWelcomeEmail = async (userEmail: string, userName: string) => {
   }
 };
 
+export const sendOtpToEmail = async (email: string, otp: number) => {
+  const mailOptions = {
+    from: `Evently <${process.env.EMAIL_USER}>`,
+    to: email,
+    subject: "Welcome to Evently!",
+    html: `<h1>Hello here is your reset password otp ${otp}`,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+  } catch (error) {
+    console.error("Error while sending welcome email:", error);
+  }
+};
+

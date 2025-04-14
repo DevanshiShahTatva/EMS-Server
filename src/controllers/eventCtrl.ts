@@ -9,6 +9,7 @@ import {
   deleteOne,
 } from "../helper/common";
 import { deleteFromCloudinary, saveFileToCloud } from "../helper/cloudniry";
+import { HTTP_STATUS_CODE } from "../utilits/enum";
 
 export const postEvent = async (req: Request, res: any) => {
   try {
@@ -29,7 +30,7 @@ export const postEvent = async (req: Request, res: any) => {
     return res.status(rcResponse.status).send(rcResponse);
   } catch (err: any) {
     if (err.name === "ValidationError") {
-      return throwError(res, err.message, 402);
+      return throwError(res, err.message, HTTP_STATUS_CODE.BAD_REQUEST);
     } else {
       return throwError(res);
     }
@@ -70,7 +71,7 @@ export const putEvent = async (req: Request, res: any) => {
     // 1. Find existing event
     const findEvent = await findOne("Event", { _id: eventId });
     if (!findEvent) {
-      return throwError(res, "Event not found", 404);
+      return throwError(res, "Event not found", HTTP_STATUS_CODE.NOT_FOUND);
     }
 
     // 2. Parse existing image IDs
@@ -80,17 +81,23 @@ export const putEvent = async (req: Request, res: any) => {
 
     // 3. Validate existing images belong to the event
     const currentPublicIds = findEvent.images.map((img: any) => img.imageId);
-    const invalidIds = existingImageIds.filter((id: string) => !currentPublicIds.includes(id));
+    const invalidIds = existingImageIds.filter(
+      (id: string) => !currentPublicIds.includes(id)
+    );
     if (invalidIds.length > 0) {
-      return throwError(res, "Invalid image references", 400);
+      return throwError(
+        res,
+        "Invalid image references",
+        HTTP_STATUS_CODE.BAD_REQUEST
+      );
     }
 
     // 4. Process images to keep and delete
-    const imagesToKeep = findEvent.images.filter((img: any) => 
+    const imagesToKeep = findEvent.images.filter((img: any) =>
       existingImageIds.includes(img.imageId)
     );
-    const imagesToDelete = findEvent.images.filter((img: any) => 
-      !existingImageIds.includes(img.imageId)
+    const imagesToDelete = findEvent.images.filter(
+      (img: any) => !existingImageIds.includes(img.imageId)
     );
 
     // 5. Upload new images
@@ -101,10 +108,7 @@ export const putEvent = async (req: Request, res: any) => {
     // 6. Prepare updated data
     const updatedEventData = {
       ...req.body,
-      images: [
-        ...imagesToKeep,
-        ...newImages
-      ]
+      images: [...imagesToKeep, ...newImages],
     };
 
     // 7. Update database first
@@ -131,7 +135,7 @@ export const deleteEvent = async (req: Request, res: any) => {
 
     const event = await findOne("Event", { _id: eventId }, sort);
     if (!event) {
-      return throwError(res, "Event not found", 404);
+      return throwError(res, "Event not found", HTTP_STATUS_CODE.NOT_FOUND);
     }
 
     if (event.images && event.images.length > 0) {
