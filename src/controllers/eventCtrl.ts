@@ -48,6 +48,19 @@ export const getEvents = async (_req: Request, res: any) => {
   }
 };
 
+export const getEventById = async (req: Request, res: any) => {
+  try {
+    const rcResponse = new ApiResponse();
+    const eventId = req.params.id;
+    let sort = { created: -1 };
+
+    rcResponse.data = await findOne("Event", { _id: eventId }, sort);
+    return res.status(rcResponse.status).send(rcResponse);
+  } catch (error) {
+    return throwError(res);
+  }
+};
+
 export const putEvent = async (req: Request, res: any) => {
   try {
     const rcResponse = new ApiResponse();
