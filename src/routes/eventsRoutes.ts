@@ -2,6 +2,7 @@ import { Router } from "express";
 import { validateToken } from "../middlewares/checkToken";
 import {
   deleteEvent,
+  getEventById,
   getEvents,
   postEvent,
   putEvent,
@@ -19,6 +20,7 @@ eventsRoutes.post(
   postEvent
 );
 eventsRoutes.get("/", validateToken, getEvents);
+eventsRoutes.get("/:id", validateToken, getEventById);
 eventsRoutes.put(
   "/:id",
   validateToken,
