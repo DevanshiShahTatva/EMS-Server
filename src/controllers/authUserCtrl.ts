@@ -160,7 +160,7 @@ export const forgotPassword = async (req: Request, res: any) => {
       { otp: otp, otp_expiry: Date.now() + 5 * 60 * 1000 }
     );
     rcResponse.data = { email: email };
-    await sendOtpToEmail(email, otp);
+    await sendOtpToEmail(email, otp, findUser.name);
     rcResponse.message = "Otp send successfully to your email";
     return res.status(rcResponse.status).send(rcResponse);
   } catch (err) {

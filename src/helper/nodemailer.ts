@@ -52,12 +52,29 @@ export const sendWelcomeEmail = async (userEmail: string, userName: string) => {
   }
 };
 
-export const sendOtpToEmail = async (email: string, otp: number) => {
+export const sendOtpToEmail = async (email: string, otp: number, name: string) => {
+  const emailOtpTemplate = fs.readFileSync(
+    path.join(__dirname, "../emails/otp-verification-email-template.html"),
+    "utf-8"
+  );
+
+  const customizedHtml = emailOtpTemplate
+    .replace("[Recipient Name]", name)
+    .replace("[(OTP)]", String(otp))
+    .replace("[home page link]", "https://eventlyfe.netlify.app");
+
   const mailOptions = {
     from: `Evently <${process.env.EMAIL_USER}>`,
     to: email,
     subject: "Welcome to Evently!",
-    html: `<h1>Hello here is your reset password otp ${otp}`,
+    html: customizedHtml,
+    attachments: [
+      {
+        filename: "main_logo.png",
+        path: path.join(__dirname, "../emails/assets/main_logo.png"),
+        cid: "companyLogo"
+      },
+    ]
   };
 
   try {
