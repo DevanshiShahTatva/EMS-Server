@@ -7,6 +7,7 @@ import {
   updateOne,
   throwError,
   deleteOne,
+  getUserIdFromToken,
 } from "../helper/common";
 import { deleteFromCloudinary, saveFileToCloud } from "../helper/cloudniry";
 import { HTTP_STATUS_CODE } from "../utilits/enum";
@@ -151,6 +152,39 @@ export const deleteEvent = async (req: Request, res: any) => {
 
     return res.status(rcResponse.status).send(rcResponse);
   } catch (err: any) {
+    return throwError(res);
+  }
+};
+
+export const likeEvent = async (req: Request, res: any) => {
+  try {
+    const rcResponse = new ApiResponse();
+    const token = req.headers["token"] as string;
+    const eventId = req.params.id;
+    const userId = getUserIdFromToken(token);
+
+    const event = await findOne("Event", { _id: eventId });
+    if (!event) {
+      return throwError(res, "Event not found", HTTP_STATUS_CODE.NOT_FOUND);
+    }
+
+    const hasLikedIndex = event.likes.findIndex(
+      (like: string) => like.toString() === userId.toString()
+    );
+
+    if (hasLikedIndex >= 0) {
+      event.likes.splice(hasLikedIndex, 1);
+    } else {
+      event.likes.push(userId);
+    }
+
+    rcResponse.data = await updateOne(
+      "Event",
+      { _id: eventId },
+      { likes: event.likes }
+    );
+    return res.status(rcResponse.status).send(rcResponse);
+  } catch (err) {
     return throwError(res);
   }
 };

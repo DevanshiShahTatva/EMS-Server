@@ -25,6 +25,7 @@ interface IEvent extends Document {
   images: string[];
   createdAt: Date;
   updatedAt: Date;
+  likes: Array<mongoose.Schema.Types.ObjectId>;
 }
 
 const TicketSchema = new Schema<ITicket>({
@@ -121,6 +122,12 @@ const EventSchema = new Schema<IEvent>(
         message: "Must have between 1 and 4 images",
       },
       required: true,
+    },
+    likes: {
+      type: [
+        { type: mongoose.Schema.Types.ObjectId, ref: "User" }
+      ],
+      default: []
     },
   },
   {

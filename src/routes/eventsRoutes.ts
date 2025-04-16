@@ -4,6 +4,7 @@ import {
   deleteEvent,
   getEventById,
   getEvents,
+  likeEvent,
   postEvent,
   putEvent,
 } from "../controllers/eventCtrl";
@@ -28,5 +29,6 @@ eventsRoutes.put(
   putEvent
 );
 eventsRoutes.delete("/:id", validateToken, deleteEvent);
+eventsRoutes.post("/:id/like", validateToken, likeEvent);
 
 export default eventsRoutes;

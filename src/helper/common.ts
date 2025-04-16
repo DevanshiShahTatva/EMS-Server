@@ -2,6 +2,7 @@ import { Document, Model } from "mongoose";
 import User from "../models/signup.model";
 import Event from "../models/event.modes";
 import TicketBook from "../models/eventBooking.model";
+import jwt from "jsonwebtoken";
 
 interface IModelMap {
   [key: string]: Model<Document>;
@@ -10,7 +11,7 @@ interface IModelMap {
 const models: IModelMap = {
   User,
   Event,
-  TicketBook
+  TicketBook,
 };
 
 export class ApiResponse<T = any> {
@@ -60,11 +61,9 @@ const find = async (
   populates: string[] = []
 ) => {
   try {
-    let queryBuilder = models[collection]
-      .find(query)
-      .sort(sort)
-      // .limit(limit)
-      // .skip(skip);
+    let queryBuilder = models[collection].find(query).sort(sort);
+    // .limit(limit)
+    // .skip(skip);
 
     if (populates.length > 0) {
       populates.forEach((field: string) => {
@@ -145,4 +144,19 @@ const deleteOne = async (collection: string, query: Record<string, any>) => {
   }
 };
 
-export { find, findOne, findOneAndUpdate, updateOne, deleteOne, create };
+const getUserIdFromToken = (token: string) => {
+  const secretKey = process.env.TOKEN_SECRET as string;
+  const tokenUser = jwt.verify(token, secretKey) as any;
+  const userId = tokenUser._id;
+  return userId;
+};
+
+export {
+  find,
+  findOne,
+  findOneAndUpdate,
+  updateOne,
+  deleteOne,
+  create,
+  getUserIdFromToken,
+};
