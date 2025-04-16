@@ -1,4 +1,4 @@
-import { Request } from "express";
+import { Request, Response } from "express";
 import {
   ApiResponse,
   create,
@@ -14,7 +14,7 @@ import { HTTP_STATUS_CODE } from "../utilits/enum";
 import Event from "../models/event.modes";
 import mongoose, { Types } from "mongoose";
 
-export const postEvent = async (req: Request, res: any) => {
+export const postEvent = async (req: Request, res: Response) => {
   try {
     const rcResponse = new ApiResponse();
     const files = req.files as Express.Multer.File[];
@@ -40,11 +40,10 @@ export const postEvent = async (req: Request, res: any) => {
   }
 };
 
-export const getEvents = async (req: Request, res: any) => {
+export const getEvents = async (req: Request, res: Response) => {
   try {
     const rcResponse = new ApiResponse();
-    const token = req.headers["token"] as string;
-    const userId = getUserIdFromToken(token);
+    const userId = getUserIdFromToken(req);
 
     const pipeline: any[] = [
       { $match: {} },
@@ -84,11 +83,10 @@ export const getEvents = async (req: Request, res: any) => {
   }
 };
 
-export const getEventById = async (req: Request, res: any) => {
+export const getEventById = async (req: Request, res: Response) => {
   try {
     const rcResponse = new ApiResponse();
-    const token = req.headers["token"] as string;
-    const userId = getUserIdFromToken(token);
+    const userId = getUserIdFromToken(req);
     const eventId = req.params.id;
 
     const pipeline: any[] = [
@@ -126,7 +124,7 @@ export const getEventById = async (req: Request, res: any) => {
   }
 };
 
-export const putEvent = async (req: Request, res: any) => {
+export const putEvent = async (req: Request, res: Response) => {
   try {
     const rcResponse = new ApiResponse();
     const files = req.files as Express.Multer.File[];
@@ -191,7 +189,7 @@ export const putEvent = async (req: Request, res: any) => {
   }
 };
 
-export const deleteEvent = async (req: Request, res: any) => {
+export const deleteEvent = async (req: Request, res: Response) => {
   try {
     const rcResponse = new ApiResponse();
     const eventId = req.params.id;
@@ -219,12 +217,11 @@ export const deleteEvent = async (req: Request, res: any) => {
   }
 };
 
-export const likeEvent = async (req: Request, res: any) => {
+export const likeEvent = async (req: Request, res: Response) => {
   try {
     const rcResponse = new ApiResponse();
-    const token = req.headers["token"] as string;
     const eventId = req.params.id;
-    const userId = new Types.ObjectId(getUserIdFromToken(token));
+    const userId = new Types.ObjectId(getUserIdFromToken(req));
 
     // Solution 1: Use native Mongoose methods with proper typing
     const event = await Event.findById(eventId).select("likes").lean() as any;

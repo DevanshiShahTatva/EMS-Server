@@ -6,7 +6,7 @@ import {
   throwError,
   updateOne,
 } from "../helper/common";
-import { HTTP_STATUS_CODE } from "../utilits/enum";
+import { COOKIE_OPTIONS, HTTP_STATUS_CODE } from "../utilits/enum";
 import bcryptjs from "bcryptjs";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
@@ -95,7 +95,10 @@ export const loginUser = async (req: Request, res: Response) => {
       };
       rcResponse.data = userDataWithToken;
       rcResponse.message = "You have login successfully.";
-      return res.status(rcResponse.status).send(rcResponse);
+      return res
+        .cookie("token", token, COOKIE_OPTIONS)
+        .status(rcResponse.status)
+        .send(rcResponse);
     } else {
       // validation for if email is exists
       const findUser = await findOne("User", { email: email }, sort);
@@ -134,7 +137,10 @@ export const loginUser = async (req: Request, res: Response) => {
       };
       rcResponse.data = userDataWithToken;
       rcResponse.message = "You have login successfully.";
-      return res.status(rcResponse.status).send(rcResponse);
+      return res
+        .cookie("token", token, COOKIE_OPTIONS)
+        .status(rcResponse.status)
+        .send(rcResponse);
     }
   } catch (err) {
     return throwError(res);
@@ -168,7 +174,7 @@ export const forgotPassword = async (req: Request, res: any) => {
   }
 };
 
-export const ResetPassword = async (req: Request, res: any) => {
+export const resetPassword = async (req: Request, res: any) => {
   try {
     const rcResponse = new ApiResponse();
     const { email, otp, password } = req.body;
@@ -180,7 +186,11 @@ export const ResetPassword = async (req: Request, res: any) => {
 
     // check otp expiry
     if (Date.now() > findUser.otp_expiry) {
-      return throwError(res, "OTP has expired or it's already been used", HTTP_STATUS_CODE.BAD_REQUEST);
+      return throwError(
+        res,
+        "OTP has expired or it's already been used",
+        HTTP_STATUS_CODE.BAD_REQUEST
+      );
     }
 
     // verify otp
@@ -201,6 +211,17 @@ export const ResetPassword = async (req: Request, res: any) => {
     rcResponse.message = "Password has been changed successfully";
     return res.status(rcResponse.status).send(rcResponse);
   } catch (err) {
+    return throwError(res);
+  }
+};
+
+export const logoutUser = async (req: Request, res: Response) => {
+  try {
+    const rcResponse = new ApiResponse();
+    rcResponse.message = "You have logout successfully";
+    rcResponse.data = null;
+    return res.clearCookie("token").status(rcResponse.status).send(rcResponse);
+  } catch (error) {
     return throwError(res);
   }
 };

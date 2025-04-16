@@ -6,6 +6,7 @@ import { connectToDatabase } from "./config/dbConfig";
 import bodyParser from "body-parser";
 import compression from "compression";
 import helmet from "helmet";
+import cookieParser from "cookie-parser";
 
 dotenv.config();
 
@@ -20,6 +21,7 @@ app.use(compression()); // compress the response
 app.use(helmet()); // security purpose
 app.use(json({ limit: "50mb" }));
 app.use(urlencoded({ extended: true, limit: "50mb" }));
+app.use(cookieParser())
 
 // Connect to database
 connectToDatabase();

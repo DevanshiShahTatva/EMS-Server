@@ -1,3 +1,5 @@
+import express from "express";
+
 export const HTTP_STATUS_CODE = {
   OK: 200, // successfull GET/PUT request
   CREATED: 201, // resource created POST
@@ -20,3 +22,9 @@ export const CATEGORY_ENUM = [
   "Gaming",
   "Business",
 ];
+
+export const COOKIE_OPTIONS: express.CookieOptions = {
+  httpOnly: true,
+  sameSite: 'none',
+  secure: true,
+}

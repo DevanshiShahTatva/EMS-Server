@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import { Request } from "express";
-import { ApiResponse, find, findOne, throwError } from "../helper/common";
+import { ApiResponse, find, findOne, getUserIdFromToken, throwError } from "../helper/common";
 import jwt from "jsonwebtoken";
 import TicketBook from "../models/eventBooking.model";
 import { HTTP_STATUS_CODE } from "../utilits/enum";
@@ -11,13 +11,10 @@ export const postTicketBook = async (req: Request, res: any) => {
     session.startTransaction();
 
     const rcResponse = new ApiResponse();
-    const token = req.headers["token"] as string;
     const { eventId, ticketId, seats, totalAmount, paymentId } = req.body;
 
     // find user from token
-    const secretKey = process.env.TOKEN_SECRET as string;
-    const tokenUser = jwt.verify(token, secretKey) as any;
-    const user = tokenUser._id;
+    const user = getUserIdFromToken(req);
 
     // validate body data
     if (![eventId, ticketId, seats].every(Boolean) || seats < 1) {
@@ -89,13 +86,10 @@ export const postTicketBook = async (req: Request, res: any) => {
 export const getTicketBooks = async (req: Request, res: any) => {
   try {
     const rcResponse = new ApiResponse();
-    const token = req.headers["token"] as string;
     let sort = { created: -1 };
 
     // find user from token
-    const secretKey = process.env.TOKEN_SECRET as string;
-    const tokenUser = jwt.verify(token, secretKey) as any;
-    const userId = tokenUser._id;
+    const userId = getUserIdFromToken(req);
 
     const populates = ["user", "event"];
 

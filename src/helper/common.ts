@@ -1,3 +1,4 @@
+import { Request } from "express";
 import { Document, Model } from "mongoose";
 import User from "../models/signup.model";
 import Event from "../models/event.modes";
@@ -144,7 +145,8 @@ const deleteOne = async (collection: string, query: Record<string, any>) => {
   }
 };
 
-const getUserIdFromToken = (token: string) => {
+const getUserIdFromToken = (req: Request) => {
+  const token = req.cookies.token;
   const secretKey = process.env.TOKEN_SECRET as string;
   const tokenUser = jwt.verify(token, secretKey) as any;
   const userId = tokenUser._id;
