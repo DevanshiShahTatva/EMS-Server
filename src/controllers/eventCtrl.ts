@@ -11,6 +11,8 @@ import {
 } from "../helper/common";
 import { deleteFromCloudinary, saveFileToCloud } from "../helper/cloudniry";
 import { HTTP_STATUS_CODE } from "../utilits/enum";
+import Event from "../models/event.modes";
+import mongoose, { Types } from "mongoose";
 
 export const postEvent = async (req: Request, res: any) => {
   try {
@@ -38,12 +40,44 @@ export const postEvent = async (req: Request, res: any) => {
   }
 };
 
-export const getEvents = async (_req: Request, res: any) => {
+export const getEvents = async (req: Request, res: any) => {
   try {
     const rcResponse = new ApiResponse();
-    let sort = { created: -1 };
+    const token = req.headers["token"] as string;
+    const userId = getUserIdFromToken(token);
 
-    rcResponse.data = await find("Event", {}, sort);
+    const pipeline: any[] = [
+      { $match: {} },
+      { $sort: { created: -1 } },
+      // Add computed fields.
+      {
+        $addFields: {
+          // Use $ifNull to default missing likes to an empty array, then compute the size.
+          likesCount: { $size: { $ifNull: ["$likes", []] } },
+          // Check if the authenticated user's ObjectId exists in the likes array.
+          isLiked: userId
+            ? {
+                $in: [
+                  new mongoose.Types.ObjectId(userId),
+                  { $ifNull: ["$likes", []] },
+                ],
+              }
+            : false,
+        },
+      },
+      // Optionally remove the raw likes array from the result.
+      {
+        $project: {
+          likes: 0,
+          __v: 0
+        },
+      },
+    ];
+
+    // Execute the aggregation pipeline on the Event collection.
+    const events = await Event.aggregate(pipeline);
+
+    rcResponse.data = events;
     return res.status(rcResponse.status).send(rcResponse);
   } catch (error) {
     return throwError(res);
@@ -53,10 +87,39 @@ export const getEvents = async (_req: Request, res: any) => {
 export const getEventById = async (req: Request, res: any) => {
   try {
     const rcResponse = new ApiResponse();
+    const token = req.headers["token"] as string;
+    const userId = getUserIdFromToken(token);
     const eventId = req.params.id;
-    let sort = { created: -1 };
 
-    rcResponse.data = await findOne("Event", { _id: eventId }, sort);
+    const pipeline: any[] = [
+      // Match the event by its _id.
+      { $match: { _id: new Types.ObjectId(eventId) } },
+      // Add computed fields: likesCount and isLiked.
+      {
+        $addFields: {
+          likesCount: { $size: { $ifNull: ["$likes", []] } },
+          isLiked: userId
+            ? {
+                $in: [
+                  new Types.ObjectId(userId),
+                  { $ifNull: ["$likes", []] },
+                ],
+              }
+            : false,
+        },
+      },
+      // Project to remove the raw 'likes' array from the output.
+      { $project: { likes: 0, __v: 0 } },
+    ];
+
+    const eventResult = await Event.aggregate(pipeline);
+
+    // If no event is found, return an error.
+    if (!eventResult || eventResult.length === 0) {
+      return throwError(res, "Event not found");
+    }
+
+    rcResponse.data = eventResult[0];
     return res.status(rcResponse.status).send(rcResponse);
   } catch (error) {
     return throwError(res);
@@ -161,29 +224,46 @@ export const likeEvent = async (req: Request, res: any) => {
     const rcResponse = new ApiResponse();
     const token = req.headers["token"] as string;
     const eventId = req.params.id;
-    const userId = getUserIdFromToken(token);
+    const userId = new Types.ObjectId(getUserIdFromToken(token));
 
-    const event = await findOne("Event", { _id: eventId });
+    // Solution 1: Use native Mongoose methods with proper typing
+    const event = await Event.findById(eventId).select("likes").lean() as any;
+    
     if (!event) {
       return throwError(res, "Event not found", HTTP_STATUS_CODE.NOT_FOUND);
     }
 
-    const hasLikedIndex = event.likes.findIndex(
-      (like: string) => like.toString() === userId.toString()
+    // Check if user already liked
+    const hasLiked = event.likes.some((likeId: any) => 
+      likeId.toString() === userId.toString()
     );
 
-    if (hasLikedIndex >= 0) {
-      event.likes.splice(hasLikedIndex, 1);
-    } else {
-      event.likes.push(userId);
+    // Atomic update operation
+    const update = hasLiked
+      ? { $pull: { likes: userId } } // Unlike
+      : { $push: { likes: userId } }; // Like
+
+    // Perform the update and get the updated document
+    const updatedEvent = await Event.findByIdAndUpdate(
+      eventId,
+      update,
+      { 
+        new: true,
+        projection: { likes: 1, __v: 0 } // Only return the likes field
+      }
+    ).lean() as any;
+
+    if (!updatedEvent) {
+      return throwError(res, "Update failed", HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR);
     }
 
-    rcResponse.data = await updateOne(
-      "Event",
-      { _id: eventId },
-      { likes: event.likes }
-    );
+    rcResponse.data = {
+      likesCount: updatedEvent.likes.length,
+      isLiked: !hasLiked
+    };
+
     return res.status(rcResponse.status).send(rcResponse);
+
   } catch (err) {
     return throwError(res);
   }
