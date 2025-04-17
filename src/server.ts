@@ -8,6 +8,7 @@ import compression from "compression";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import { createLogger } from "./helper/logger";
+import { allowedOrigins } from "./utilits/enum";
 const log = createLogger("standardMiddleware");
 
 dotenv.config();
@@ -15,7 +16,6 @@ dotenv.config();
 const app = express();
 
 // middlewares
-app.use(cors());
 app.use(express.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
@@ -23,32 +23,19 @@ app.use(compression()); // compress the response
 app.use(helmet()); // security purpose
 app.use(json({ limit: "50mb" }));
 app.use(urlencoded({ extended: true, limit: "50mb" }));
+
 app.use(cookieParser());
 app.use(
   cors({
-    origin: (origin, callback) => {
-      if (!origin) {
-        return callback(null, true);
-      }
-
-      const allowedOrigins = [
-        process.env.CLIENT_URL,
-        "http://localhost:3000",
-      ];
-
+    origin: function (origin, callback) {
+      if (!origin) return callback(null, true);
       if (allowedOrigins.includes(origin)) {
-        log.info("CORS allowed for origin:", origin);
         return callback(null, true);
+      } else {
+        return callback(new Error("Not allowed by CORS"));
       }
-
-      log.warn("CORS blocked for origin:", origin);
-      return callback(new Error("Not allowed by CORS"));
     },
     credentials: true,
-    optionsSuccessStatus: 200,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
-    exposedHeaders: ["Content-Range", "X-Content-Range"],
   })
 );
 

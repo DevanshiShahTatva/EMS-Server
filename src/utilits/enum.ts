@@ -26,5 +26,7 @@ export const CATEGORY_ENUM = [
 export const COOKIE_OPTIONS: express.CookieOptions = {
   httpOnly: true,
   sameSite: 'none',
-  secure: true,
-}
+  secure: process.env.NODE_ENV === 'production',
+};
+
+export const allowedOrigins = ["http://localhost:3000", process.env.CLIENT_URL];

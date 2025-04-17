@@ -3,7 +3,7 @@ import jwt from "jsonwebtoken";
 import { throwError } from "../helper/common";
 
 export const validateToken = (req: Request, res: any, next: NextFunction) => {
-  const token = req.cookies.token;
+  const token = (req.headers?.token as string) || "";
 
   // check if token is present
   if (!token) {

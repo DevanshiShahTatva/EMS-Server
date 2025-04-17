@@ -99,10 +99,7 @@ export const loginUser = async (req: Request, res: Response) => {
       };
       rcResponse.data = userDataWithToken;
       rcResponse.message = "You have login successfully.";
-      return res
-        .cookie("token", token, COOKIE_OPTIONS)
-        .status(rcResponse.status)
-        .send(rcResponse);
+      return res.status(rcResponse.status).send(rcResponse);
     } else {
       // validation for if email is exists
       const findUser = await findOne("User", { email: email }, sort);
@@ -141,10 +138,7 @@ export const loginUser = async (req: Request, res: Response) => {
       };
       rcResponse.data = userDataWithToken;
       rcResponse.message = "You have login successfully.";
-      return res
-        .cookie("token", token, COOKIE_OPTIONS)
-        .status(rcResponse.status)
-        .send(rcResponse);
+      return res.status(rcResponse.status).send(rcResponse);
     }
   } catch (err) {
     return throwError(res);

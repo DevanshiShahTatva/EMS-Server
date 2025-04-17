@@ -146,7 +146,7 @@ const deleteOne = async (collection: string, query: Record<string, any>) => {
 };
 
 const getUserIdFromToken = (req: Request) => {
-  const token = req.cookies.token;
+  const token = (req.headers?.token as string) || "";
   const secretKey = process.env.TOKEN_SECRET as string;
   const tokenUser = jwt.verify(token, secretKey) as any;
   const userId = tokenUser._id;
