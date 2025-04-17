@@ -84,3 +84,17 @@ export const sendOtpToEmail = async (email: string, otp: number, name: string) =
   }
 };
 
+export const resetPasswordSuccessMail = async (email: string, name: string) => {
+  const mailOptions = {
+    from: `Evently <${process.env.EMAIL_USER}>`,
+    to: email,
+    subject: "Welcome to Evently!",
+    html: `<p>your password change successfully</p>`,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+  } catch (error) {
+    console.error("Error while sending welcome email:", error);
+  }
+};

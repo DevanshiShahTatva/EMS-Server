@@ -10,7 +10,11 @@ import { COOKIE_OPTIONS, HTTP_STATUS_CODE } from "../utilits/enum";
 import bcryptjs from "bcryptjs";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
-import { sendOtpToEmail, sendWelcomeEmail } from "../helper/nodemailer";
+import {
+  resetPasswordSuccessMail,
+  sendOtpToEmail,
+  sendWelcomeEmail,
+} from "../helper/nodemailer";
 
 dotenv.config();
 
@@ -198,6 +202,17 @@ export const resetPassword = async (req: Request, res: any) => {
       return throwError(res, "Incorrect OTP", HTTP_STATUS_CODE.BAD_REQUEST);
     }
 
+    // check password is same or not
+    const isSamePassword = await bcryptjs.compare(password, findUser.password);
+
+    if (isSamePassword) {
+      return throwError(
+        res,
+        "Password must be different form previous password",
+        HTTP_STATUS_CODE.BAD_REQUEST
+      );
+    }
+
     // password to hash password
     const salt = await bcryptjs.genSalt(10);
     const hashPassword = await bcryptjs.hash(password, salt);
@@ -209,6 +224,7 @@ export const resetPassword = async (req: Request, res: any) => {
     );
 
     rcResponse.message = "Password has been changed successfully";
+    resetPasswordSuccessMail(email, findUser.name);
     return res.status(rcResponse.status).send(rcResponse);
   } catch (err) {
     return throwError(res);
