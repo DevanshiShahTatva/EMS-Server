@@ -14,13 +14,25 @@ import { HTTP_STATUS_CODE } from "../utilits/enum";
 export const topLikedEvents = async (req: Request, res: Response) => {
   try {
     const rcResponse = new ApiResponse();
-    const limit = parseInt(req.query.limit as string) || 5;
+    let limit;
+    if (req.query?.limit) {
+      const parsedLimit = parseInt(req.query.limit as string);
+      if (!isNaN(parsedLimit) && parsedLimit > 0) {
+        limit = parsedLimit;
+      }
+    }
+
     const pipeline: any[] = [
-      { $sort: { likesCounts: -1 } },
-      { $limit: limit },
       { $addFields: { likesCount: { $size: { $ifNull: ["$likes", []] } } } },
-      { $project: { likes: 0, __v: 0, isLiked: 0 } },
     ];
+
+    if (limit) {
+      pipeline.push({ $limit: limit });
+    }
+
+    pipeline.push({ $sort: { likesCount: -1 } });
+    pipeline.push({ $project: { title: 1, likesCount: 1, category: 1} });
+
     const events = await Event.aggregate(pipeline);
     rcResponse.data = events;
     res.status(rcResponse.status).send(rcResponse);
@@ -40,40 +52,42 @@ export const totalRevenue = async (
 
     // Validate input
     if (validatePeriod(period, reference)) {
-      return throwError(res, `Invalid ${period} format`, HTTP_STATUS_CODE.BAD_REQUEST);
+      return throwError(
+        res,
+        `Invalid ${period} format`,
+        HTTP_STATUS_CODE.BAD_REQUEST
+      );
     }
 
     // Get date range with strict year boundaries
-    const { startDate, endDate, groupFormat, currentReference } = getDateRange(period, reference);
+    const { startDate, endDate, groupFormat, currentReference } = getDateRange(
+      period,
+      reference
+    );
 
     const pipeline: any[] = [
-      { 
-        $match: { 
-          bookingDate: { 
+      {
+        $match: {
+          bookingDate: {
             $gte: startDate,
-            $lte: endDate
-          } 
-        } 
+            $lte: endDate,
+          },
+        },
       },
       {
         $group: {
           _id: { $dateToString: { format: groupFormat, date: "$bookingDate" } },
-          total: { $sum: "$totalAmount" },  // Changed from avgValue
-          bookings: { $sum: 1 }
-        }
+          total: { $sum: "$totalAmount" }, // Changed from avgValue
+          bookings: { $sum: 1 },
+        },
       },
-      { $sort: { _id: 1 } }
+      { $sort: { _id: 1 } },
     ];
 
     const rawData = await TicketBook.aggregate(pipeline);
 
     // Fixed empty interval generation
-    const filledData = fillEmptyIntervals(
-      rawData, 
-      period, 
-      startDate, 
-      endDate
-    );
+    const filledData = fillEmptyIntervals(rawData, period, startDate, endDate);
 
     const response = {
       period,
@@ -81,7 +95,7 @@ export const totalRevenue = async (
       startDate: startDate.toISOString(),
       endDate: endDate.toISOString(),
       data: filledData,
-      navigation: getNavigation(period, currentReference)
+      navigation: getNavigation(period, currentReference),
     };
 
     rcResponse.data = response;
@@ -113,8 +127,37 @@ export const topRevenueEvents = async (req: Request, res: Response) => {
 export const repeateCustomer = async (req: Request, res: Response) => {
   try {
     const rcResponse = new ApiResponse();
+    const limit = parseInt(req.query.limit as string) || 10;
+
+    const pipeline: any[] = [
+      { $group: { _id: "$user", totalBookings: { $sum: "$seats" } } },
+      { $match: { totalBookings: { $gte: 2 } } },
+      { $sort: { totalBookings: -1 } },
+      { $limit: limit },
+      {
+        $lookup: {
+          from: "users",
+          localField: "_id",
+          foreignField: "_id",
+          as: "userDetails",
+        },
+      },
+      { $unwind: "$userDetails" },
+      {
+        $project: {
+          _id: 0,
+          userId: "$_id",
+          name: "$userDetails.name",
+          email: "$userDetails.email",
+          totalBookings: 1,
+        },
+      },
+    ];
+
+    rcResponse.data = await TicketBook.aggregate(pipeline);
     res.status(rcResponse.status).send(rcResponse);
   } catch (err) {
+    console.log(err);
     return throwError(res);
   }
 };
@@ -122,6 +165,78 @@ export const repeateCustomer = async (req: Request, res: Response) => {
 export const bookingsByTicketType = async (req: Request, res: Response) => {
   try {
     const rcResponse = new ApiResponse();
+
+    const pipeline: any[] = [
+      {
+        $group: {
+          _id: "$ticket",
+          totalBookings: { $sum: "$seats" }
+        }
+      },
+      {
+        $lookup: {
+          from: "events",
+          let: { ticketId: "$_id" },
+          pipeline: [
+            { $unwind: "$tickets" },
+            {
+              $match: {
+                $expr: {
+                  $eq: [
+                    { $toString: "$tickets._id" }, 
+                    "$$ticketId"
+                  ]
+                }
+              }
+            },
+            {
+              $project: {
+                type: "$tickets.type",
+                totalSeats: "$tickets.totalSeats",
+                totalBooked: "$tickets.totalBookedSeats"
+              }
+            }
+          ],
+          as: "ticketInfo"
+        }
+      },
+      { $unwind: "$ticketInfo" },
+      {
+        $addFields: {
+          seatsAvailable: {
+            $subtract: ["$ticketInfo.totalSeats", "$ticketInfo.totalBooked"]
+          },
+          bookingPercentage: {
+            $round: [
+              {
+                $multiply: [
+                  {
+                    $divide: [
+                      "$ticketInfo.totalBooked",
+                      "$ticketInfo.totalSeats"
+                    ]
+                  },
+                  100
+                ]
+              },
+              2
+            ]
+          }
+        }
+      },
+      {
+        $project: {
+          ticketType: "$ticketInfo.type",
+          totalBookings: 1,
+          totalSeats: "$ticketInfo.totalSeats",
+          seatsAvailable: 1,
+          bookingPercentage: 1
+        }
+      },
+      { $sort: { totalBookings: -1 } }
+    ];
+
+    rcResponse.data = await TicketBook.aggregate(pipeline);
     res.status(rcResponse.status).send(rcResponse);
   } catch (err) {
     return throwError(res);
