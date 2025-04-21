@@ -31,7 +31,7 @@ export const topLikedEvents = async (req: Request, res: Response) => {
     }
 
     pipeline.push({ $sort: { likesCount: -1 } });
-    pipeline.push({ $project: { title: 1, likesCount: 1, category: 1} });
+    pipeline.push({ $project: { title: 1, likesCount: 1, category: 1 } });
 
     const events = await Event.aggregate(pipeline);
     rcResponse.data = events;
@@ -118,6 +118,45 @@ export const averageBookingValue = async (req: Request, res: Response) => {
 export const topRevenueEvents = async (req: Request, res: Response) => {
   try {
     const rcResponse = new ApiResponse();
+    let limit;
+    if (req.query?.limit) {
+      const parsedLimit = parseInt(req.query.limit as string);
+      if (!isNaN(parsedLimit) && parsedLimit > 0) {
+        limit = parsedLimit;
+      }
+    }
+
+    const pipeline: any[] = [
+      {
+        $group: {
+          _id: "$event",
+          totalRevenue: { $sum: "$totalAmount" },
+        },
+      },
+      { $sort: { totalRevenue: -1 } },
+      {
+        $lookup: {
+          from: "events",
+          localField: "_id",
+          foreignField: "_id",
+          as: "eventDetails",
+        },
+      },
+      { $unwind: "$eventDetails" },
+      {
+        $project: {
+          eventTitle: "$eventDetails.title",
+          totalRevenue: 1,
+          _id: 0,
+        },
+      },
+    ];
+
+    if (limit) {
+      pipeline.push({ $limit: limit });
+    }
+
+    rcResponse.data = await TicketBook.aggregate(pipeline);
     res.status(rcResponse.status).send(rcResponse);
   } catch (err) {
     return throwError(res);
@@ -162,7 +201,7 @@ export const repeateCustomer = async (req: Request, res: Response) => {
   }
 };
 
-export const bookingsByTicketType = async (req: Request, res: Response) => {
+export const bookingsByTicketType = async (_req: Request, res: Response) => {
   try {
     const rcResponse = new ApiResponse();
 
@@ -170,8 +209,8 @@ export const bookingsByTicketType = async (req: Request, res: Response) => {
       {
         $group: {
           _id: "$ticket",
-          totalBookings: { $sum: "$seats" }
-        }
+          totalBookings: { $sum: "$seats" },
+        },
       },
       {
         $lookup: {
@@ -182,29 +221,26 @@ export const bookingsByTicketType = async (req: Request, res: Response) => {
             {
               $match: {
                 $expr: {
-                  $eq: [
-                    { $toString: "$tickets._id" }, 
-                    "$$ticketId"
-                  ]
-                }
-              }
+                  $eq: [{ $toString: "$tickets._id" }, "$$ticketId"],
+                },
+              },
             },
             {
               $project: {
                 type: "$tickets.type",
                 totalSeats: "$tickets.totalSeats",
-                totalBooked: "$tickets.totalBookedSeats"
-              }
-            }
+                totalBooked: "$tickets.totalBookedSeats",
+              },
+            },
           ],
-          as: "ticketInfo"
-        }
+          as: "ticketInfo",
+        },
       },
       { $unwind: "$ticketInfo" },
       {
         $addFields: {
           seatsAvailable: {
-            $subtract: ["$ticketInfo.totalSeats", "$ticketInfo.totalBooked"]
+            $subtract: ["$ticketInfo.totalSeats", "$ticketInfo.totalBooked"],
           },
           bookingPercentage: {
             $round: [
@@ -213,16 +249,16 @@ export const bookingsByTicketType = async (req: Request, res: Response) => {
                   {
                     $divide: [
                       "$ticketInfo.totalBooked",
-                      "$ticketInfo.totalSeats"
-                    ]
+                      "$ticketInfo.totalSeats",
+                    ],
                   },
-                  100
-                ]
+                  100,
+                ],
               },
-              2
-            ]
-          }
-        }
+              2,
+            ],
+          },
+        },
       },
       {
         $project: {
@@ -230,10 +266,10 @@ export const bookingsByTicketType = async (req: Request, res: Response) => {
           totalBookings: 1,
           totalSeats: "$ticketInfo.totalSeats",
           seatsAvailable: 1,
-          bookingPercentage: 1
-        }
+          bookingPercentage: 1,
+        },
       },
-      { $sort: { totalBookings: -1 } }
+      { $sort: { totalBookings: -1 } },
     ];
 
     rcResponse.data = await TicketBook.aggregate(pipeline);
@@ -255,6 +291,58 @@ export const bookingsTimeTrends = async (req: Request, res: Response) => {
 export const topLocations = async (req: Request, res: Response) => {
   try {
     const rcResponse = new ApiResponse();
+
+    const pipeline: any[] = [
+      {
+        $addFields: {
+          addressParts: {
+            $split: ["$location.address", ", "]
+          }
+        }
+      },
+      {
+        $addFields: {
+          city: {
+            $ifNull: [
+              { $arrayElemAt: ["$addressParts", 0] },
+              "Unknown City"
+            ]
+          },
+          country: {
+            $ifNull: [
+              { $arrayElemAt: ["$addressParts", 2] },
+              { $arrayElemAt: ["$addressParts", 1] },
+              "Unknown Country"
+            ]
+          }
+        }
+      },
+      {
+        $group: {
+          _id: {
+            city: "$city",
+            country: "$country"
+          },
+          eventCount: { $sum: 1 }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          location: {
+            $cond: [
+              { $eq: ["$_id.country", "Unknown Country"] },
+              "$_id.city",
+              { $concat: ["$_id.city", ", ", "$_id.country"] }
+            ]
+          },
+          eventCount: 1
+        }
+      },
+      { $sort: { eventCount: -1 } }
+    ];
+
+    rcResponse.data = await Event.aggregate(pipeline);
     res.status(rcResponse.status).send(rcResponse);
   } catch (err) {
     return throwError(res);

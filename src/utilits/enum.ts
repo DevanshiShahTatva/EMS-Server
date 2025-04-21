@@ -25,8 +25,13 @@ export const CATEGORY_ENUM = [
 
 export const COOKIE_OPTIONS: express.CookieOptions = {
   httpOnly: true,
-  sameSite: 'none',
-  secure: process.env.NODE_ENV === 'production',
+  sameSite: "none",
+  secure: process.env.NODE_ENV === "production",
 };
 
-export const allowedOrigins = ["http://localhost:3000", process.env.CLIENT_URL];
+export const allowedOrigins = [
+  "http://localhost:3000",
+  process.env.CLIENT_URL,
+  "https://a695-152-59-36-197.ngrok-free.app",
+  "https://devanshi-9417788.postman.co"
+];
