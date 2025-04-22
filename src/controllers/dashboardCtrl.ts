@@ -286,9 +286,9 @@ export const bookingsTimeTrends = async (req: Request, res: Response) => {
 
     // Validate year parameter
     if (!/^\d{4}$/.test(year)) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
-        message: 'Invalid year format. Please use YYYY format.'
+        message: "Invalid year format. Please use YYYY format.",
       });
     }
 
@@ -302,9 +302,9 @@ export const bookingsTimeTrends = async (req: Request, res: Response) => {
         $match: {
           bookingDate: {
             $gte: startDate,
-            $lte: endDate
-          }
-        }
+            $lte: endDate,
+          },
+        },
       },
       {
         $group: {
@@ -313,50 +313,52 @@ export const bookingsTimeTrends = async (req: Request, res: Response) => {
               $dateToString: {
                 format: "%Y-%m-%d",
                 date: "$bookingDate",
-                timezone: "UTC"
-              }
-            }
+                timezone: "UTC",
+              },
+            },
           },
           bookings: { $sum: 1 },
-          revenue: { $sum: "$totalAmount" }
-        }
+          revenue: { $sum: "$totalAmount" },
+        },
       },
-      { $sort: { "_id.date": 1 } }
+      { $sort: { "_id.date": 1 } },
     ];
 
     // Execute aggregation
     const dailyBookings = await TicketBook.aggregate(pipeline);
 
     // Create map for quick lookup
-    const bookingsMap = new Map(dailyBookings.map(item => [item._id.date, item]));
+    const bookingsMap = new Map(
+      dailyBookings.map((item) => [item._id.date, item])
+    );
 
     // Generate complete monthly structure
     const result = [];
-    
+
     for (let monthIdx = 0; monthIdx < 12; monthIdx++) {
       const monthNumber = monthIdx + 1;
       const daysInMonth = new Date(yearNum, monthNumber, 0).getDate();
       const monthData = [];
 
       for (let day = 1; day <= daysInMonth; day++) {
-        const dateStr = `${year}-${String(monthNumber).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const dateStr = `${year}-${String(monthNumber).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
         const entry = bookingsMap.get(dateStr);
 
         monthData.push({
           date: dateStr,
           bookings: entry?.bookings || 0,
-          revenue: entry?.revenue || 0
+          revenue: entry?.revenue || 0,
         });
       }
 
       result.push({
         month: MONTH_NAMES[monthIdx],
-        data: monthData
+        data: monthData,
       });
     }
 
     rcResponse.data = result;
-    rcResponse.message = 'Bookings by day retrieved successfully';
+    rcResponse.message = "Bookings by day retrieved successfully";
     res.status(rcResponse.status).send(rcResponse);
   } catch (err) {
     return throwError(res);
@@ -371,35 +373,32 @@ export const topLocations = async (req: Request, res: Response) => {
       {
         $addFields: {
           addressParts: {
-            $split: ["$location.address", ", "]
-          }
-        }
+            $split: ["$location.address", ", "],
+          },
+        },
       },
       {
         $addFields: {
           city: {
-            $ifNull: [
-              { $arrayElemAt: ["$addressParts", 0] },
-              "Unknown City"
-            ]
+            $ifNull: [{ $arrayElemAt: ["$addressParts", 0] }, "Unknown City"],
           },
           country: {
             $ifNull: [
               { $arrayElemAt: ["$addressParts", 2] },
               { $arrayElemAt: ["$addressParts", 1] },
-              "Unknown Country"
-            ]
-          }
-        }
+              "Unknown Country",
+            ],
+          },
+        },
       },
       {
         $group: {
           _id: {
             city: "$city",
-            country: "$country"
+            country: "$country",
           },
-          eventCount: { $sum: 1 }
-        }
+          eventCount: { $sum: 1 },
+        },
       },
       {
         $project: {
@@ -408,13 +407,13 @@ export const topLocations = async (req: Request, res: Response) => {
             $cond: [
               { $eq: ["$_id.country", "Unknown Country"] },
               "$_id.city",
-              { $concat: ["$_id.city", ", ", "$_id.country"] }
-            ]
+              { $concat: ["$_id.city", ", ", "$_id.country"] },
+            ],
           },
-          eventCount: 1
-        }
+          eventCount: 1,
+        },
       },
-      { $sort: { eventCount: -1 } }
+      { $sort: { eventCount: -1 } },
     ];
 
     rcResponse.data = await Event.aggregate(pipeline);
