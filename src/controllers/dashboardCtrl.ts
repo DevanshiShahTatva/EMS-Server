@@ -9,7 +9,7 @@ import {
   PeriodType,
   validatePeriod,
 } from "../helper/dateHelper";
-import { HTTP_STATUS_CODE } from "../utilits/enum";
+import { HTTP_STATUS_CODE, MONTH_NAMES } from "../utilits/enum";
 
 export const topLikedEvents = async (req: Request, res: Response) => {
   try {
@@ -282,6 +282,81 @@ export const bookingsByTicketType = async (_req: Request, res: Response) => {
 export const bookingsTimeTrends = async (req: Request, res: Response) => {
   try {
     const rcResponse = new ApiResponse();
+    const year = req.query.year as string;
+
+    // Validate year parameter
+    if (!/^\d{4}$/.test(year)) {
+      return res.status(400).json({ 
+        success: false,
+        message: 'Invalid year format. Please use YYYY format.'
+      });
+    }
+
+    const yearNum = parseInt(year, 10);
+    const startDate = new Date(Date.UTC(yearNum, 0, 1)); // January 1st of the year
+    const endDate = new Date(Date.UTC(yearNum, 11, 31, 23, 59, 59, 999)); // December 31st
+
+    // Aggregation pipeline
+    const pipeline: any[] = [
+      {
+        $match: {
+          bookingDate: {
+            $gte: startDate,
+            $lte: endDate
+          }
+        }
+      },
+      {
+        $group: {
+          _id: {
+            date: {
+              $dateToString: {
+                format: "%Y-%m-%d",
+                date: "$bookingDate",
+                timezone: "UTC"
+              }
+            }
+          },
+          bookings: { $sum: 1 },
+          revenue: { $sum: "$totalAmount" }
+        }
+      },
+      { $sort: { "_id.date": 1 } }
+    ];
+
+    // Execute aggregation
+    const dailyBookings = await TicketBook.aggregate(pipeline);
+
+    // Create map for quick lookup
+    const bookingsMap = new Map(dailyBookings.map(item => [item._id.date, item]));
+
+    // Generate complete monthly structure
+    const result = [];
+    
+    for (let monthIdx = 0; monthIdx < 12; monthIdx++) {
+      const monthNumber = monthIdx + 1;
+      const daysInMonth = new Date(yearNum, monthNumber, 0).getDate();
+      const monthData = [];
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dateStr = `${year}-${String(monthNumber).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const entry = bookingsMap.get(dateStr);
+
+        monthData.push({
+          date: dateStr,
+          bookings: entry?.bookings || 0,
+          revenue: entry?.revenue || 0
+        });
+      }
+
+      result.push({
+        month: MONTH_NAMES[monthIdx],
+        data: monthData
+      });
+    }
+
+    rcResponse.data = result;
+    rcResponse.message = 'Bookings by day retrieved successfully';
     res.status(rcResponse.status).send(rcResponse);
   } catch (err) {
     return throwError(res);
