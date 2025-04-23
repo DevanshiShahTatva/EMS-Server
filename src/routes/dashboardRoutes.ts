@@ -3,7 +3,7 @@ import { validateToken } from "../middlewares/checkToken";
 import {
   topLikedEvents,
   totalRevenue,
-  averageBookingValue,
+  totalBookingValue,
   topRevenueEvents,
   repeateCustomer,
   bookingsByTicketType,
@@ -18,7 +18,7 @@ dashboardRoutes.get("/total-revenue", validateToken, totalRevenue);
 dashboardRoutes.get(
   "/average-booking-value",
   validateToken,
-  totalRevenue
+  totalBookingValue
 );
 dashboardRoutes.get("/top-revenue-events", validateToken, topRevenueEvents);
 dashboardRoutes.get("/repeat-customers", validateToken, repeateCustomer);

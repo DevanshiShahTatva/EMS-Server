@@ -101,14 +101,88 @@ export const totalRevenue = async (
     rcResponse.data = response;
     res.status(rcResponse.status).send(rcResponse);
   } catch (err) {
-    console.error("Error:", err);
     return throwError(res);
   }
 };
 
-export const averageBookingValue = async (req: Request, res: Response) => {
+export const totalBookingValue = async (
+  req: Request<{}, {}, {}, { period: PeriodType; reference: string }>,
+  res: Response
+) => {
   try {
     const rcResponse = new ApiResponse();
+    const period = req.query.period || "yearly";
+    const reference = req.query.reference;
+
+    // Validate period parameters
+    if (validatePeriod(period, reference)) {
+      return throwError(
+        res,
+        `Invalid ${period} format`,
+        HTTP_STATUS_CODE.BAD_REQUEST
+      );
+    }
+
+    // Get date range
+    const { startDate, endDate, currentReference } = getDateRange(
+      period,
+      reference
+    );
+
+    // Aggregation pipeline
+    const pipeline: any[] = [
+      {
+        $match: {
+          bookingDate: {
+            $gte: startDate,
+            $lte: endDate,
+          },
+        },
+      },
+      {
+        $lookup: {
+          from: "events",
+          localField: "event",
+          foreignField: "_id",
+          as: "eventDetails",
+        },
+      },
+      { $unwind: "$eventDetails" },
+      {
+        $group: {
+          _id: "$eventDetails.category",
+          totalValue: { $sum: "$totalAmount" },
+          totalBookings: { $sum: 1 },
+        },
+      },
+      {
+        $project: {
+          category: "$_id",
+          totalValue: 1,
+          totalBookings: 1,
+          _id: 0,
+        },
+      },
+      { $sort: { totalValue: -1 } },
+    ];
+
+    const data = await TicketBook.aggregate(pipeline);
+
+    // Format response
+    const response = {
+      period,
+      currentReference,
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+      data: data.map((item) => ({
+        category: item.category || "Uncategorized",
+        totalValue: item.totalValue,
+        bookings: item.totalBookings,
+      })),
+      navigation: getNavigation(period, currentReference),
+    };
+
+    rcResponse.data = response;
     res.status(rcResponse.status).send(rcResponse);
   } catch (err) {
     return throwError(res);
