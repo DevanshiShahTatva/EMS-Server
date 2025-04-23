@@ -10,6 +10,51 @@ import {
   validatePeriod,
 } from "../helper/dateHelper";
 import { HTTP_STATUS_CODE, MONTH_NAMES } from "../utilits/enum";
+import User from "../models/signup.model";
+
+export const dashboardOverview = async (req: Request, res: Response) => {
+  try {
+    const rcResponse = new ApiResponse();
+     // Execute all queries in parallel
+     const [
+      totalUsers,
+      totalRevenueResult,
+      totalEvents,
+      totalLocationsResult
+    ] = await Promise.all([
+      // Total Users
+      User.countDocuments(),
+      
+      // Total Revenue
+      TicketBook.aggregate([
+        { $group: { _id: null, total: { $sum: "$totalAmount" } } }
+      ]),
+      
+      // Total Events
+      Event.countDocuments(),
+      
+      // Unique Locations (group by lat/lng)
+      Event.aggregate([
+        { $group: { _id: { lat: "$location.lat", lng: "$location.lng" } } },
+        { $count: "totalLocations" }
+      ])
+    ]);
+
+    // Extract values from aggregation results
+    const totalRevenue = totalRevenueResult[0]?.total || 0;
+    const totalLocations = totalLocationsResult[0]?.totalLocations || 0;
+
+    rcResponse.data = {
+      totalUsers,
+      totalRevenue,
+      totalEvents,
+      totalLocations
+    }
+    res.status(rcResponse.status).send(rcResponse);
+  } catch (err) {
+    return throwError(res);
+  }
+};
 
 export const topLikedEvents = async (req: Request, res: Response) => {
   try {

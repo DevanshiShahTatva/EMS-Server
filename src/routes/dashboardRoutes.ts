@@ -2,6 +2,7 @@ import { Router } from "express";
 import { validateToken } from "../middlewares/checkToken";
 import {
   topLikedEvents,
+  dashboardOverview,
   totalRevenue,
   totalBookingValue,
   topRevenueEvents,
@@ -13,6 +14,7 @@ import {
 
 const dashboardRoutes = Router();
 
+dashboardRoutes.get("/dashboard-overview", validateToken, dashboardOverview);
 dashboardRoutes.get("/top-liked-events", validateToken, topLikedEvents);
 dashboardRoutes.get("/total-revenue", validateToken, totalRevenue);
 dashboardRoutes.get(
