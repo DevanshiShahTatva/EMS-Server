@@ -16,6 +16,8 @@ const signupSchema = new mongoose.Schema({
     type: String,
     required: [true, "Password is required"],
   },
+  profileimage: { type: String, default: null },
+  address: { type: String, default: null },
   otp: { type: String },
   otp_expiry: { type: Date },
 });

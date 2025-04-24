@@ -4,8 +4,10 @@ import {
   registerUser,
   forgotPassword,
   resetPassword,
-  logoutUser
+  logoutUser,
+  userDetails
 } from "../controllers/authUserCtrl";
+import { validateToken } from "../middlewares/checkToken";
 
 const authRoutes = Router();
 
@@ -14,5 +16,6 @@ authRoutes.post("/login", loginUser);
 authRoutes.post("/forgot_password", forgotPassword);
 authRoutes.post("/reset_password", resetPassword);
 authRoutes.get("/logout", logoutUser);
+authRoutes.get("/user_details", validateToken, userDetails);
 
 export default authRoutes;

@@ -3,6 +3,7 @@ import {
   ApiResponse,
   create,
   findOne,
+  getUserIdFromToken,
   throwError,
   updateOne,
 } from "../helper/common";
@@ -15,6 +16,8 @@ import {
   sendOtpToEmail,
   sendWelcomeEmail,
 } from "../helper/nodemailer";
+import User from "../models/signup.model";
+import { Types } from "mongoose";
 
 dotenv.config();
 
@@ -232,6 +235,24 @@ export const logoutUser = async (req: Request, res: Response) => {
     rcResponse.data = null;
     return res.clearCookie("token").status(rcResponse.status).send(rcResponse);
   } catch (error) {
+    return throwError(res);
+  }
+};
+
+export const userDetails = async (req: Request, res: Response) => {
+  try {
+    const rcResponse = new ApiResponse();
+    const userId = getUserIdFromToken(req);
+
+    const pipeline: any[] = [
+      { $match: { _id: new Types.ObjectId(userId) } },
+      { $project: { _id: 1, name: 1, email: 1, profileimage: 1, address: 1 } },
+    ];
+
+    rcResponse.data = await User.aggregate(pipeline);
+    return res.clearCookie("token").status(rcResponse.status).send(rcResponse);
+  } catch (error) {
+    console.log("rerro", error);
     return throwError(res);
   }
 };
