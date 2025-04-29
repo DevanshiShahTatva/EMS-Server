@@ -32,6 +32,7 @@ export const COOKIE_OPTIONS: express.CookieOptions = {
 export const allowedOrigins = [
   "http://localhost:3000",
   process.env.CLIENT_URL,
+  process.env.CLIENT_URL1,
   "https://a695-152-59-36-197.ngrok-free.app",
   "https://devanshi-9417788.postman.co"
 ];
