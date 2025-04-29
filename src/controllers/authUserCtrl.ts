@@ -18,6 +18,7 @@ import {
 } from "../helper/nodemailer";
 import User from "../models/signup.model";
 import { Types } from "mongoose";
+import { saveFileToCloud } from "../helper/cloudniry";
 
 dotenv.config();
 
@@ -250,7 +251,72 @@ export const userDetails = async (req: Request, res: Response) => {
     ];
 
     rcResponse.data = await User.aggregate(pipeline);
-    return res.clearCookie("token").status(rcResponse.status).send(rcResponse);
+    return res.status(rcResponse.status).send(rcResponse);
+  } catch (error) {
+    return throwError(res);
+  }
+};
+
+export const settingResetPassword = async (req: Request, res: Response) => {
+  try {
+    const rcResponse = new ApiResponse();
+    const userId = getUserIdFromToken(req);
+    const { newPassword } = req.body;
+
+    const pipeline: any[] = [
+      { $match: { _id: new Types.ObjectId(userId) } },
+      { $project: { _id: 0, _v: 0 } },
+    ];
+
+    const currentUser = (await User.aggregate(pipeline)) as any;
+
+    const isBothPasswordSame = await bcryptjs.compare(
+      newPassword,
+      currentUser[0].password
+    );
+
+    if (isBothPasswordSame) {
+      return throwError(res, "Old and new password must be difference", 400);
+    };
+
+    // bcrypt the password to store in db
+    const salt = await bcryptjs.genSalt(10);
+    const hashPassword = await bcryptjs.hash(newPassword, salt);
+
+    currentUser[0].password = hashPassword;
+
+    rcResponse.data = await updateOne("User", { _id: userId }, currentUser[0]);
+    rcResponse.message = "Your password has been successfully changed.";
+    return res.status(rcResponse.status).send(rcResponse);
+  } catch (error) {
+    return throwError(res);
+  }
+};
+
+export const updateUser = async (req: Request, res: Response) => {
+  try {
+    const rcResponse = new ApiResponse();
+    const userId = getUserIdFromToken(req);
+    // const files = req.files as Express.Multer.File[];
+    const data = req.body;
+
+    const user = await findOne("User", { _id: new Types.ObjectId(userId) });
+
+    if (!user) {
+      return throwError(res, "User not found", 404);
+    }
+
+    // const imageUrl = await Promise.all(
+    //   files.map((file) => saveFileToCloud(file))
+    // );
+
+    const newData = {
+      ...data,
+      // profileimage: imageUrl,
+    };
+
+    rcResponse.data = await updateOne("User", { _id: userId }, newData);
+    return res.status(rcResponse.status).send(rcResponse);
   } catch (error) {
     console.log("rerro", error);
     return throwError(res);
