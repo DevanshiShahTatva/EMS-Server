@@ -7,7 +7,7 @@ import {
   throwError,
   updateOne,
 } from "../helper/common";
-import { COOKIE_OPTIONS, HTTP_STATUS_CODE } from "../utilits/enum";
+import { HTTP_STATUS_CODE } from "../utilits/enum";
 import bcryptjs from "bcryptjs";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
@@ -15,6 +15,7 @@ import {
   resetPasswordSuccessMail,
   sendOtpToEmail,
   sendWelcomeEmail,
+  sendOtpForEmailChange,
 } from "../helper/nodemailer";
 import User from "../models/signup.model";
 import { Types } from "mongoose";
@@ -277,7 +278,7 @@ export const settingResetPassword = async (req: Request, res: Response) => {
 
     if (isBothPasswordSame) {
       return throwError(res, "Old and new password must be difference", 400);
-    };
+    }
 
     // bcrypt the password to store in db
     const salt = await bcryptjs.genSalt(10);
@@ -287,6 +288,96 @@ export const settingResetPassword = async (req: Request, res: Response) => {
 
     rcResponse.data = await updateOne("User", { _id: userId }, currentUser[0]);
     rcResponse.message = "Your password has been successfully changed.";
+    return res.status(rcResponse.status).send(rcResponse);
+  } catch (error) {
+    return throwError(res);
+  }
+};
+
+export const settingResetEmail = async (req: Request, res: Response) => {
+  try {
+    const rcResponse = new ApiResponse();
+    const userId = getUserIdFromToken(req);
+    const { email } = req.body;
+
+    const pipeline: any[] = [
+      { $match: { _id: new Types.ObjectId(userId) } },
+      { $project: { _id: 0, _v: 0 } },
+    ];
+
+    const currentUser = (await User.aggregate(pipeline)) as any;
+
+    if (!email) {
+      return throwError(
+        res,
+        "Email must be required",
+        HTTP_STATUS_CODE.BAD_REQUEST
+      );
+    }
+
+    const isBothEmailSame = currentUser[0].email === email;
+
+    if (isBothEmailSame) {
+      return throwError(
+        res,
+        "Old and new email must be difference",
+        HTTP_STATUS_CODE.BAD_REQUEST
+      );
+    }
+
+    let otp = Math.random();
+    otp = Math.floor(100000 + Math.random() * 900000);
+
+    await updateOne(
+      "User",
+      { email: currentUser[0].email },
+      { email_otp: otp, email_otp_expiry: Date.now() + 5 * 60 * 1000 }
+    );
+    rcResponse.data = { email: email };
+    await sendOtpForEmailChange(email, otp, currentUser[0].name);
+    rcResponse.message = "Otp send successfully to your email";
+    return res.status(rcResponse.status).send(rcResponse);
+  } catch (error) {
+    return throwError(res);
+  }
+};
+
+export const settingVerifyEmail = async (req: Request, res: Response) => {
+  try {
+    const rcResponse = new ApiResponse();
+    const userId = getUserIdFromToken(req);
+    const { email, otp } = req.body;
+
+    const pipeline: any[] = [
+      { $match: { _id: new Types.ObjectId(userId) } },
+      { $project: { _id: 0, _v: 0 } },
+    ];
+
+    const currentUser = (await User.aggregate(pipeline)) as any;
+
+    // check otp expiry
+    if (Date.now() > currentUser[0].email_otp_expiry) {
+      return throwError(
+        res,
+        "OTP has expired or it's already been used",
+        HTTP_STATUS_CODE.BAD_REQUEST
+      );
+    }
+
+    console.log("OTP::", otp, currentUser[0].email_otp)
+
+    // verify otp
+    if (otp !== currentUser[0].email_otp) {
+      return throwError(res, "Incorrect OTP", HTTP_STATUS_CODE.BAD_REQUEST);
+    }
+
+    rcResponse.data = await updateOne(
+      "User",
+      { email: currentUser[0].email },
+      { email_otp: "", email_otp_expiry: null, email: email }
+    );
+
+    rcResponse.message = "Email has been changed successfully";
     return res.status(rcResponse.status).send(rcResponse);
   } catch (error) {
     return throwError(res);

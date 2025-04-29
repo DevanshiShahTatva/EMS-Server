@@ -8,6 +8,8 @@ import {
   userDetails,
   updateUser,
   settingResetPassword,
+  settingResetEmail,
+  settingVerifyEmail
 } from "../controllers/authUserCtrl";
 import { validateToken } from "../middlewares/checkToken";
 import multer from "multer";
@@ -28,5 +30,7 @@ authRoutes.put(
   updateUser
 );
 authRoutes.put("/reset_setting_password", validateToken, settingResetPassword);
+authRoutes.put("/reset_setting_email", validateToken, settingResetEmail);
+authRoutes.put("/verify_setting_email", validateToken, settingVerifyEmail);
 
 export default authRoutes;

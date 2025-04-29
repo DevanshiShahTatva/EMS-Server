@@ -30,6 +30,5 @@ eventsRoutes.put(
 );
 eventsRoutes.delete("/:id", validateToken, deleteEvent);
 eventsRoutes.post("/:id/like", validateToken, likeEvent);
-eventsRoutes.get("/reset_setting_password", validateToken, () => { console.log("called")});
 
 export default eventsRoutes;

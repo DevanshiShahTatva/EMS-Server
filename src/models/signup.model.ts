@@ -20,6 +20,8 @@ const signupSchema = new mongoose.Schema({
   address: { type: String, default: null },
   otp: { type: String },
   otp_expiry: { type: Date },
+  email_otp: { type: String },
+  email_otp_expiry: { type: Date },
 });
 
 signupSchema.set("toJSON", {
