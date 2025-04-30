@@ -19,7 +19,7 @@ import {
 } from "../helper/nodemailer";
 import User from "../models/signup.model";
 import { Types } from "mongoose";
-import { saveFileToCloud } from "../helper/cloudniry";
+import { deleteFromCloudinary, saveFileToCloud } from "../helper/cloudniry";
 
 dotenv.config();
 
@@ -364,8 +364,6 @@ export const settingVerifyEmail = async (req: Request, res: Response) => {
       );
     }
 
-    console.log("OTP::", otp, currentUser[0].email_otp)
-
     // verify otp
     if (otp !== currentUser[0].email_otp) {
       return throwError(res, "Incorrect OTP", HTTP_STATUS_CODE.BAD_REQUEST);
@@ -388,7 +386,7 @@ export const updateUser = async (req: Request, res: Response) => {
   try {
     const rcResponse = new ApiResponse();
     const userId = getUserIdFromToken(req);
-    // const files = req.files as Express.Multer.File[];
+    const files = req.files as Express.Multer.File[];
     const data = req.body;
 
     const user = await findOne("User", { _id: new Types.ObjectId(userId) });
@@ -397,14 +395,24 @@ export const updateUser = async (req: Request, res: Response) => {
       return throwError(res, "User not found", 404);
     }
 
-    // const imageUrl = await Promise.all(
-    //   files.map((file) => saveFileToCloud(file))
-    // );
-
-    const newData = {
+    let newData = {
       ...data,
-      // profileimage: imageUrl,
     };
+
+    if (files.length > 0) {
+      if (user.profileimage && user.profileimage.imageId) {
+        await deleteFromCloudinary(user.profileimage.imageId);
+      }
+
+      const imageUrl = await Promise.all(
+        files.map((file) => saveFileToCloud(file))
+      );
+
+      newData = {
+        ...data,
+        profileimage: imageUrl[0],
+      };
+    }
 
     rcResponse.data = await updateOne("User", { _id: userId }, newData);
     return res.status(rcResponse.status).send(rcResponse);

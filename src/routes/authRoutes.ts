@@ -26,7 +26,7 @@ authRoutes.get("/user_details", validateToken, userDetails);
 authRoutes.put(
   "/update/user",
   validateToken,
-  upload.array("images", 1),
+  upload.array("profileimage", 1),
   updateUser
 );
 authRoutes.put("/reset_setting_password", validateToken, settingResetPassword);
