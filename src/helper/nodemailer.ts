@@ -28,7 +28,7 @@ export const sendWelcomeEmail = async (userEmail: string, userName: string) => {
 
   const customizedHtml = emailTemplate
     .replace(/\[User's First Name\]/g, userName)
-    .replace("[button navigate link]", "https://eventlyfe.netlify.app/login");
+    .replace("[button navigate link]", `${process.env.CLIENT_URL}/login`);
 
   const mailOptions = {
     from: `Evently <${process.env.EMAIL_USER}>`,
@@ -61,7 +61,7 @@ export const sendOtpToEmail = async (email: string, otp: number, name: string) =
   const customizedHtml = emailOtpTemplate
     .replace("[Recipient Name]", name)
     .replace("[(OTP)]", String(otp))
-    .replace("[home page link]", "https://eventlyfe.netlify.app");
+    .replace("[home page link]", `${process.env.CLIENT_URL}`);
 
   const mailOptions = {
     from: `Evently <${process.env.EMAIL_USER}>`,
@@ -93,7 +93,7 @@ export const sendOtpForEmailChange = async (email: string, otp: number, name: st
   const customizedHtml = emailOtpTemplate
     .replace("[Recipient Name]", name)
     .replace("[(OTP)]", String(otp))
-    .replace("[home page link]", "https://eventlyfe.netlify.app");
+    .replace("[home page link]", `${process.env.CLIENT_URL}`);
 
   const mailOptions = {
     from: `Evently <${process.env.EMAIL_USER}>`,
@@ -128,5 +128,72 @@ export const resetPasswordSuccessMail = async (email: string, name: string) => {
     await transporter.sendMail(mailOptions);
   } catch (error) {
     console.error("Error while sending welcome email:", error);
+  }
+};
+
+
+// CONTACT US - SYSTEM TO USER
+export const sendContactConfirmationEmail = async (email: string, name: string, subject: string) => {
+  try {
+    const emailTemplate = fs.readFileSync(
+      path.join(__dirname, "../emails/contact-confirmation.html"),
+      "utf-8"
+    );
+
+    const customizedHtml = emailTemplate
+      .replace(/\[User's Name\]/g, name)
+      .replace(/\[Subject\]/g, subject)
+      .replace("[home page link]", `${process.env.CLIENT_URL}`);
+
+    const mailOptions = {
+      from: `Evently Support <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: `We've received your message: ${subject}`,
+      html: customizedHtml,
+      attachments: [
+        {
+          filename: "main_logo.png",
+          path: path.join(__dirname, "../emails/assets/main_logo.png"),
+          cid: "companyLogo"
+        },
+      ]
+    };
+
+    await transporter.sendMail(mailOptions);
+  } catch (error) {
+    console.error("Error while sending email to User for Confirmation contact:", error);
+  }
+};
+
+// CONTACT US - USER TO ADMIN
+export const sendContactNotificationToAdmin = async (
+  userEmail: string,
+  userName: string,
+  subject: string,
+  message: string
+) => {
+  try {
+    const emailTemplate = fs.readFileSync(
+      path.join(__dirname, "../emails/contact-notification.html"), // Path to your HTML template
+      "utf-8"
+    );
+
+    const customizedHtml = emailTemplate
+      .replace(/\[User's Name\]/g, userName)
+      .replace(/\[User's Email\]/g, userEmail)
+      .replace(/\[Subject\]/g, subject)
+      .replace(/\[Message\]/g, message)
+      .replace("[dashboard link]", `${process.env.CLIENT_URL}`);
+
+    const mailOptions = {
+      from: `Evently Notifications <${process.env.EMAIL_USER}>`,
+      to: process.env.EMAIL_USER, // ADMIN EMAIL TO RECEIVE CONTACT
+      subject: `New Contact Form Submission: ${subject}`,
+      html: customizedHtml,
+    };
+
+    await transporter.sendMail(mailOptions);
+  } catch (error) {
+    console.error("Error while sending email to Admin from User to Contact Us:", error);
   }
 };
