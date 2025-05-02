@@ -1,4 +1,3 @@
-// src/controllers/faqController.ts
 import { Request, Response } from 'express';
 import Faq from '../models/faq.model';
 import { appLogger } from '../helper/logger';
