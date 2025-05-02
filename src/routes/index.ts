@@ -5,6 +5,7 @@ import ticketBookRoutes from "./eventBookRoutes";
 import dashboardRoutes from "./dashboardRoutes";
 import contactRoutes from "./contactRoutes";
 import faqRoutes from "./faqRoutes";
+import termsRoutes from "./termsRoutes";
 
 const router = Router();
 router.use(authRoutes);
@@ -13,5 +14,6 @@ router.use("/ticket/book", ticketBookRoutes);
 router.use("/dashboard/analytics", dashboardRoutes);
 router.use("/contact-us", contactRoutes);
 router.use("/faq", faqRoutes);
+router.use("/terms-and-conditions", termsRoutes);
 
 export default router;
