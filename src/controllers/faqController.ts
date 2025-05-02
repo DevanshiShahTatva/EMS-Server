@@ -61,27 +61,30 @@ export const createFaq = async (req: Request, res: Response) => {
     });
 
     try {
-        const { question, answer } = req.body;
-
-        if (!question || !answer) {
-            log.warn('Validation failed - question and answer are required');
+        // Handle both single FAQ and array of FAQs
+        const faqsData = Array.isArray(req.body) ? req.body : [req.body];
+        
+        // Validate all FAQs
+        const invalidFaqs = faqsData.filter(faq => !faq.question || !faq.answer);
+        if (invalidFaqs.length > 0) {
+            // log.warn('Validation failed - question and answer are required for all FAQs');
             return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
                 success: false,
-                message: 'Question and answer are required'
+                message: 'Question and answer are required for all FAQs',
+                invalidItems: invalidFaqs
             });
         }
 
-        log.info('Creating new FAQ');
-        const newFaq = await Faq.create({ question, answer });
+        // log.info(`Creating ${faqsData.length} FAQ(s)`);
+        const createdFaqs = await Faq.insertMany(faqsData);
 
-        log.info('FAQ created successfully');
         res.status(HTTP_STATUS_CODE.CREATED).json({
             success: true,
-            data: newFaq,
-            message: 'FAQ created successfully'
+            data: createdFaqs,
+            message: `Successfully created ${createdFaqs.length} FAQ(s)`
         });
     } catch (error) {
-        log.error({ err: error }, 'Error creating FAQ');
+        log.error({ err: error }, 'Error creating FAQ(s)');
         return throwError(res, error instanceof Error ? error.message : 'Unknown error', HTTP_STATUS_CODE.BAD_REQUEST);
     }
 };
