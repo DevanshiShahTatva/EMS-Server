@@ -11,7 +11,7 @@ import {
 } from "../helper/common";
 import { deleteFromCloudinary, saveFileToCloud } from "../helper/cloudniry";
 import { HTTP_STATUS_CODE } from "../utilits/enum";
-import Event from "../models/event.modes";
+import Event, { FeedbackModel } from "../models/event.modes";
 import mongoose, { Types } from "mongoose";
 
 export const postEvent = async (req: Request, res: Response) => {
@@ -265,3 +265,33 @@ export const likeEvent = async (req: Request, res: Response) => {
     return throwError(res);
   }
 };
+
+export const feedbackEvent = async(req:Request,res:Response)=>{
+  try {
+    const rcResponse = new ApiResponse()
+
+    const { name, email, rating, description } = req.body
+    
+    if (!name || !email || !rating) {
+      return throwError(res, 'Name, email, and rating are required', HTTP_STATUS_CODE.BAD_REQUEST)
+    }
+
+    // Save feedback to DB
+    const feedback = await FeedbackModel.create({
+      name,
+      email,
+      rating,
+      description,
+    })
+
+    rcResponse.data = {
+      message: 'Feedback submitted successfully',
+      feedbackId: feedback._id,
+    }
+
+    return res.status(rcResponse.status).send(rcResponse)
+
+  } catch (res) {
+    return throwError(res)
+  }
+}

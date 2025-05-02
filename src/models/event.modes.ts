@@ -139,6 +139,18 @@ const EventSchema = new Schema<IEvent>(
   }
 );
 
+const feedbackSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true },
+    email: { type: String, required: true },
+    rating: { type: Number, required: true },
+    description: { type: String },
+  },
+  { timestamps: true }
+)
+
+export const FeedbackModel = mongoose.model('Feedback', feedbackSchema)
+
 const Event = mongoose.models.Event || mongoose.model<IEvent>("Event", EventSchema);
 
 export default Event;
