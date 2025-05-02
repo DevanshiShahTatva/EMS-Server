@@ -4,6 +4,7 @@ import { appLogger } from '../helper/logger';
 import { sendContactConfirmationEmail, sendContactNotificationToAdmin } from '../helper/nodemailer';
 import { ApiResponse, throwError } from '../helper/common';
 import { HTTP_STATUS_CODE } from '../utilits/enum';
+import mongoose from 'mongoose';
 
 export const submitContactForm = async (req: Request, res: Response) => {
     const log = appLogger.child({
@@ -67,52 +68,67 @@ export const getContacts = async (req: Request, res: Response) => {
     }
 };
 
-export const deleteContactById = async (req: Request, res: Response) => {
+export const deleteContacts = async (req: Request, res: Response) => {
     const log = appLogger.child({
-        method: 'deleteContactById',
-        contactId: req.params.id
+        method: 'deleteContacts',
+        body: req.body
     });
 
     try {
         const rcResponse = new ApiResponse();
-        const contactId = req.params.id;
+        const { ids } = req.body;
 
-        const contact = await Contact.findByIdAndDelete(contactId);
-
-        if (!contact) {
-            // log.warn(`Contact not found with ID: ${contactId}`);
-            return res.status(HTTP_STATUS_CODE.NOT_FOUND).json({
+        // Validate input exists
+        if (!ids) {
+            return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
                 success: false,
-                message: 'Contact not found',
+                message: 'Please provide "ids" array in request body',
             });
         }
 
-        // log.info(`Successfully deleted contact with ID: ${contactId}`);
-        rcResponse.data = contact;
-        rcResponse.message = 'Contact deleted successfully';
+        // Normalize to array
+        const idArray = Array.isArray(ids) ? ids : [ids];
+
+        if (idArray.length === 0) {
+            return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
+                success: false,
+                message: 'The "ids" array cannot be empty',
+            });
+        }
+
+        // Separate valid and invalid format IDs
+        const validFormatIds = idArray.filter(id => mongoose.Types.ObjectId.isValid(id));
+        const invalidFormatIds = idArray.filter(id => !mongoose.Types.ObjectId.isValid(id));
+
+        // Find which valid IDs actually exist in DB
+        const existingContacts = await Contact.find({ _id: { $in: validFormatIds } }).select('_id');
+        const existingIds = existingContacts.map(c => c._id.toString());
+        const nonExistingIds = validFormatIds.filter(id => !existingIds.includes(id));
+
+        // Combine all invalid cases (format + non-existing)
+        const allInvalidIds = [...invalidFormatIds, ...nonExistingIds];
+
+        // Perform deletion on existing contacts
+        await Contact.deleteMany({ _id: { $in: existingIds } });
+
+        rcResponse.data = {
+            deletedIds: existingIds,
+            invalidIds: allInvalidIds.length > 0 ? allInvalidIds : undefined
+        };
+        if(allInvalidIds.length){
+            rcResponse.success = false
+        }
+
+        // Build informative message
+        let messageParts = [];
+        if (existingIds.length > 0) messageParts.push(`Deleted ${existingIds.length} contact(s)`);
+        if (allInvalidIds.length > 0) messageParts.push(`${allInvalidIds.length} invalid ID(s)`);
+        
+        rcResponse.message = messageParts.join(', ') || 'No actions taken';
 
         return res.status(rcResponse.status).json(rcResponse);
     } catch (error) {
-        log.error({ err: error }, 'Error deleting contact by ID');
-        return throwError(res, error instanceof Error ? error.message : 'Unknown error', 400);
-    }
-};
-
-export const deleteAllContacts = async (req: Request, res: Response) => {
-    const log = appLogger.child({ method: 'deleteAllContacts' });
-
-    try {
-        const rcResponse = new ApiResponse();
-
-        const result = await Contact.deleteMany({});
-
-        // log.info(`Deleted ${result.deletedCount} contacts`);
-        rcResponse.data = { deletedCount: result.deletedCount };
-        rcResponse.message = `Successfully deleted ${result.deletedCount} contacts`;
-
-        return res.status(rcResponse.status).json(rcResponse);
-    } catch (error) {
-        log.error({ err: error }, 'Error deleting all contacts');
+        log.error({ err: error }, 'Error deleting contact(s)');
         return throwError(res, error instanceof Error ? error.message : 'Unknown error', 400);
     }
 };
