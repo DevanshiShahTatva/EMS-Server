@@ -21,7 +21,7 @@ export const createLogger = (name: string): bunyan => {
 };
 
 // Create default logger instances
-export const appLogger = createLogger("contact-us-api");
+export const appLogger = createLogger("app-logger");
 export const dbLogger = createLogger("database");
 export const mailLogger = createLogger("mailer");
 export const middlewareLogger = createLogger("middleware");

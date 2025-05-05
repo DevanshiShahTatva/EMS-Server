@@ -30,6 +30,8 @@ authRoutes.put(
   updateUser
 );
 authRoutes.put("/reset_setting_password", validateToken, settingResetPassword);
+
+// UPDATE USER EMAIL
 authRoutes.put("/reset_setting_email", validateToken, settingResetEmail);
 authRoutes.put("/verify_setting_email", validateToken, settingVerifyEmail);
 
