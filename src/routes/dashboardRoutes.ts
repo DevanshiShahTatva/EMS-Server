@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { validateToken } from "../middlewares/checkToken";
+import { validateAdminToken } from "../middlewares/checkToken";
 import {
   topLikedEvents,
   dashboardOverview,
@@ -14,22 +14,22 @@ import {
 
 const dashboardRoutes = Router();
 
-dashboardRoutes.get("/dashboard-overview", validateToken, dashboardOverview);
-dashboardRoutes.get("/top-liked-events", validateToken, topLikedEvents);
-dashboardRoutes.get("/total-revenue", validateToken, totalRevenue);
+dashboardRoutes.get("/dashboard-overview", validateAdminToken, dashboardOverview);
+dashboardRoutes.get("/top-liked-events", validateAdminToken, topLikedEvents);
+dashboardRoutes.get("/total-revenue", validateAdminToken, totalRevenue);
 dashboardRoutes.get(
   "/average-booking-value",
-  validateToken,
+  validateAdminToken,
   totalBookingValue
 );
-dashboardRoutes.get("/top-revenue-events", validateToken, topRevenueEvents);
-dashboardRoutes.get("/repeat-customers", validateToken, repeateCustomer);
+dashboardRoutes.get("/top-revenue-events", validateAdminToken, topRevenueEvents);
+dashboardRoutes.get("/repeat-customers", validateAdminToken, repeateCustomer);
 dashboardRoutes.get(
   "/bookings-by-ticket-type",
-  validateToken,
+  validateAdminToken,
   bookingsByTicketType
 );
-dashboardRoutes.get("/bookings-time-trends", validateToken, bookingsTimeTrends);
-dashboardRoutes.get("/top-locations", validateToken, topLocations);
+dashboardRoutes.get("/bookings-time-trends", validateAdminToken, bookingsTimeTrends);
+dashboardRoutes.get("/top-locations", validateAdminToken, topLocations);
 
 export default dashboardRoutes;
