@@ -60,7 +60,7 @@ export const getContacts = async (req: Request, res: Response) => {
         res.status(200).json({ success: true, data: contacts });
     } catch (error) {
         log.error({ err: error }, 'Error fetching contacts');
-        res.status(500).json({
+        res.status(400).json({
             success: false,
             message: 'Error fetching contacts',
             error: error instanceof Error ? error.message : 'Unknown error',
