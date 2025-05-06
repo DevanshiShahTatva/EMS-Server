@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { ApiResponse, throwError } from "../helper/common";
-import Event from "../models/event.modes";
+import Event from "../models/event.model";
 import TicketBook from "../models/eventBooking.model";
 import {
   fillEmptyIntervals,

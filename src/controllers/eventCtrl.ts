@@ -11,7 +11,7 @@ import {
 } from "../helper/common";
 import { deleteFromCloudinary, saveFileToCloud } from "../helper/cloudniry";
 import { HTTP_STATUS_CODE } from "../utilits/enum";
-import Event from "../models/event.modes";
+import Event from "../models/event.model";
 import mongoose, { Types } from "mongoose";
 
 export const postEvent = async (req: Request, res: Response) => {
