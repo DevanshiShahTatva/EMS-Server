@@ -476,6 +476,12 @@ export const updateUser = async (req: Request, res: Response) => {
         ...data,
         profileimage: imageUrl[0],
       };
+    } else if (data.deleteImage === "true") {
+      if (user.profileimage?.imageId) {
+        await deleteFromCloudinary(user.profileimage.imageId);
+      }
+
+      newData.profileimage = null;
     }
 
     rcResponse.data = await updateOne("User", { _id: userId }, newData);
