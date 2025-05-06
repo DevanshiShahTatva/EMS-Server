@@ -13,6 +13,7 @@ import { deleteFromCloudinary, saveFileToCloud } from "../helper/cloudniry";
 import { HTTP_STATUS_CODE } from "../utilits/enum";
 import Event from "../models/event.model";
 import mongoose, { Types } from "mongoose";
+import TicketBook from "../models/eventBooking.model";
 
 export const postEvent = async (req: Request, res: Response) => {
   try {
@@ -198,6 +199,16 @@ export const deleteEvent = async (req: Request, res: Response) => {
     const event = await findOne("Event", { _id: eventId }, sort);
     if (!event) {
       return throwError(res, "Event not found", HTTP_STATUS_CODE.NOT_FOUND);
+    }
+
+    // CHECK IF BOOKINGS ARE EXISTING BEFORE DELETION
+    const bookingCount = await TicketBook.countDocuments({ event: eventId });
+    if (bookingCount > 0) {
+      return throwError(
+        res,
+        "Event can not be deleted due to existing bookings.",
+        HTTP_STATUS_CODE.BAD_REQUEST
+      );
     }
 
     if (event.images && event.images.length > 0) {
