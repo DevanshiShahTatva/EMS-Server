@@ -18,6 +18,7 @@
     "start": "node dist/server.js"
   },
   "devDependencies": {
+    "@types/body-parser": "~1.19.5",
     "@types/bunyan": "^1.8.11",
     "@types/compression": "^1.7.5",
     "@types/cookie-parser": "^1.4.8",
@@ -27,6 +28,7 @@
     "@types/multer": "^1.4.12",
     "@types/node": "^22.14.0",
     "@types/nodemailer": "^6.4.17",
+    "@types/npm": "~7.19.3",
     "dotenv": "^16.4.7",
     "eslint": "^9.23.0",
     "express": "^5.1.0",
