@@ -1,9 +1,9 @@
 import mongoose from "mongoose";
 import { Request } from "express";
 import { ApiResponse, find, findOne, getUserIdFromToken, throwError } from "../helper/common";
-import jwt from "jsonwebtoken";
 import TicketBook from "../models/eventBooking.model";
 import { HTTP_STATUS_CODE } from "../utilits/enum";
+import { sendBookingConfirmationEmail } from "../helper/nodemailer";
 
 export const postTicketBook = async (req: Request, res: any) => {
   const session = await mongoose.startSession();
@@ -18,7 +18,7 @@ export const postTicketBook = async (req: Request, res: any) => {
 
     // validate body data
     if (![eventId, ticketId, seats].every(Boolean) || seats < 1) {
-      return throwError(res, "Invalida request Parameters", HTTP_STATUS_CODE.BAD_REQUEST);
+      return throwError(res, "Invalid request Parameters", HTTP_STATUS_CODE.BAD_REQUEST);
     }
 
     // validate event and ticket
@@ -53,7 +53,8 @@ export const postTicketBook = async (req: Request, res: any) => {
       return throwError(res, "Failed to update ticket seats", HTTP_STATUS_CODE.BAD_REQUEST);
     }
 
-    rcResponse.data = await TicketBook.create(
+    // Store the created booking in a variable
+    const [booking] = await TicketBook.create(
       [
         {
           event: eventId,
@@ -70,7 +71,29 @@ export const postTicketBook = async (req: Request, res: any) => {
     await session.commitTransaction();
     session.endSession();
 
-    rcResponse.message = "Ticket book successfully.";
+    // EMAIL SERVICE
+    if (process.env.SEND_EMAILS === 'true') {
+      try {
+        const userData = await mongoose.model('User').findById(user).select('email name');
+
+        if (userData) {
+          await sendBookingConfirmationEmail(
+            userData.email,
+            userData.name,
+            event.title,
+            selectedTicket.type,
+            seats,
+            totalAmount,
+            booking._id 
+          );
+        }
+      } catch (emailError) {
+        console.error('Failed to send booking email:', emailError);
+      }
+    }
+
+    rcResponse.data = booking; // Return the booking in the response
+    rcResponse.message = "Ticket booked successfully.";
     return res.status(rcResponse.status).send(rcResponse);
   } catch (error: any) {
     await session.abortTransaction();

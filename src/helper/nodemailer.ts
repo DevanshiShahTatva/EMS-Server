@@ -45,8 +45,7 @@ export const sendWelcomeEmail = async (userEmail: string, userName: string) => {
   };
 
   try {
-    const info = await transporter.sendMail(mailOptions);
-    console.log("Welcome email sent:", info.response);
+    await transporter.sendMail(mailOptions);
   } catch (error) {
     console.error("Error while sending welcome email:", error);
   }
@@ -195,5 +194,51 @@ export const sendContactNotificationToAdmin = async (
     await transporter.sendMail(mailOptions);
   } catch (error) {
     console.error("Error while sending email to Admin from User to Contact Us:", error);
+  }
+};
+
+
+export const sendBookingConfirmationEmail = async (
+  userEmail: string,
+  userName: string,
+  eventName: string,
+  ticketType: string,
+  seats: number,
+  totalAmount: number,
+  bookingId: string
+) => {
+  try {
+    const emailTemplate = fs.readFileSync(
+      path.join(__dirname, "../emails/booking-confirmation.html"),
+      "utf-8"
+    );
+
+    const customizedHtml = emailTemplate
+      .replace(/\[User's Name\]/g, userName)
+      .replace(/\[Event Name\]/g, eventName)
+      .replace(/\[Ticket Type\]/g, ticketType)
+      .replace(/\[Number of Seats\]/g, seats.toString())
+      .replace(/\[Total Amount\]/g, totalAmount.toString())
+      .replace(/\[Booking ID\]/g, bookingId.toString())
+      .replace("[home page link]", `${process.env.CLIENT_URL}`);
+
+    const mailOptions = {
+      from: `Evently Bookings <${process.env.EMAIL_USER}>`,
+      to: userEmail,
+      subject: `Your tickets for ${eventName}`,
+      html: customizedHtml,
+      attachments: [
+        {
+          filename: "main_logo.png",
+          path: path.join(__dirname, "../emails/assets/main_logo.png"),
+          cid: "companyLogo"
+        },
+      ]
+    };
+    await transporter.sendMail(mailOptions);
+
+  } catch (error) {
+    console.error("Error sending booking confirmation:", error);
+    throw error;
   }
 };

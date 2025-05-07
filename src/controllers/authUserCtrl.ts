@@ -6,6 +6,7 @@ import {
   getUserIdFromToken,
   throwError,
   updateOne,
+  validateEmail,
 } from "../helper/common";
 import { HTTP_STATUS_CODE } from "../utilits/enum";
 import bcryptjs from "bcryptjs";
@@ -18,8 +19,10 @@ import {
   sendOtpForEmailChange,
 } from "../helper/nodemailer";
 import User from "../models/signup.model";
-import { Types } from "mongoose";
+import mongoose, { Types } from "mongoose";
 import { deleteFromCloudinary, saveFileToCloud } from "../helper/cloudniry";
+import crypto from 'crypto';
+import { appLogger } from "../helper/logger";
 
 dotenv.config();
 
@@ -295,90 +298,151 @@ export const settingResetPassword = async (req: Request, res: Response) => {
 };
 
 export const settingResetEmail = async (req: Request, res: Response) => {
+  const log = appLogger.child({
+    method: 'settingResetEmail',
+    userId: getUserIdFromToken(req)
+  });
+
+  const session = await mongoose.startSession();
   try {
+    session.startTransaction();
+
     const rcResponse = new ApiResponse();
     const userId = getUserIdFromToken(req);
     const { email } = req.body;
 
-    const pipeline: any[] = [
-      { $match: { _id: new Types.ObjectId(userId) } },
-      { $project: { _id: 0, _v: 0 } },
-    ];
 
-    const currentUser = (await User.aggregate(pipeline)) as any;
-
-    if (!email) {
-      return throwError(
-        res,
-        "Email must be required",
-        HTTP_STATUS_CODE.BAD_REQUEST
-      );
+    // Validate input
+    if (!email || !validateEmail(email)) {
+      return throwError(res, "Valid email required", HTTP_STATUS_CODE.BAD_REQUEST);
     }
 
-    const isBothEmailSame = currentUser[0].email === email;
-
-    if (isBothEmailSame) {
-      return throwError(
-        res,
-        "Old and new email must be difference",
-        HTTP_STATUS_CODE.BAD_REQUEST
-      );
+    // Check if email is already used by another user
+    const existingUser = await User.findOne({ email: new RegExp(`^${email}$`, 'i') }).session(session);
+    if (existingUser && existingUser._id.toString() !== userId) {
+      return throwError(res, "Email already in use", HTTP_STATUS_CODE.BAD_REQUEST);
     }
 
-    let otp = Math.random();
-    otp = Math.floor(100000 + Math.random() * 900000);
+    // Get user safely
+    const user = await User.findById(userId).session(session);
+    if (!user) {
+      return throwError(res, "User not found", HTTP_STATUS_CODE.NOT_FOUND);
+    }
 
-    await updateOne(
-      "User",
-      { email: currentUser[0].email },
-      { email_otp: otp, email_otp_expiry: Date.now() + 5 * 60 * 1000 }
+    // Case-insensitive comparison
+    if (user.email.toLowerCase() === email.toLowerCase()) {
+      return throwError(res, "New email must be different", HTTP_STATUS_CODE.BAD_REQUEST);
+    }
+
+    // Generate secure OTP
+    const otp = crypto.randomInt(100000, 999999);
+    const expiry = Date.now() + 5 * 60 * 1000; // 5 minutes
+
+    // Update user
+    await User.findByIdAndUpdate(
+      userId,
+      { email_otp: otp, email_otp_expiry: expiry },
+      { session }
     );
-    rcResponse.data = { email: email };
-    await sendOtpForEmailChange(email, otp, currentUser[0].name);
-    rcResponse.message = "Otp send successfully to your email";
+
+    
+    await session.commitTransaction();
+
+    // MAIL SERVICE
+    await sendOtpForEmailChange(email, otp, user.name);
+
+    rcResponse.data = { email };
+    rcResponse.message = "OTP sent successfully";
     return res.status(rcResponse.status).send(rcResponse);
+
   } catch (error) {
-    return throwError(res);
+    log.error({ err: error }, 'Error in email reset process');
+    await session.abortTransaction();
+    return throwError(res, "Email change failed", HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR);
+  } finally {
+    session.endSession();
+    // log.debug('Session ended');
   }
 };
 
 export const settingVerifyEmail = async (req: Request, res: Response) => {
+  const log = appLogger.child({
+    method: 'settingVerifyEmail',
+    userId: getUserIdFromToken(req)
+  });
+
+  const session = await mongoose.startSession();
   try {
+    session.startTransaction();
+
     const rcResponse = new ApiResponse();
     const userId = getUserIdFromToken(req);
     const { email, otp } = req.body;
 
-    const pipeline: any[] = [
-      { $match: { _id: new Types.ObjectId(userId) } },
-      { $project: { _id: 0, _v: 0 } },
-    ];
-
-    const currentUser = (await User.aggregate(pipeline)) as any;
-
-    // check otp expiry
-    if (Date.now() > currentUser[0].email_otp_expiry) {
-      return throwError(
-        res,
-        "OTP has expired or it's already been used",
-        HTTP_STATUS_CODE.BAD_REQUEST
-      );
+    // 1. Validate input
+    if (!email || !otp || !validateEmail(email)) {
+      return throwError(res, "Invalid input", HTTP_STATUS_CODE.BAD_REQUEST);
     }
 
-    // verify otp
-    if (otp !== currentUser[0].email_otp) {
-      return throwError(res, "Incorrect OTP", HTTP_STATUS_CODE.BAD_REQUEST);
+    // 2. Check if email exists (case-insensitive)
+    const emailExists = await User.findOne({
+      email: { $regex: new RegExp(`^${email}$`, 'i') },
+      _id: { $ne: new Types.ObjectId(userId) }
+    }).session(session);
+
+    if (emailExists) {
+      // log.warn('Email already in use', { email });
+      return throwError(res, "Email already in use", HTTP_STATUS_CODE.BAD_REQUEST);
     }
 
-    rcResponse.data = await updateOne(
-      "User",
-      { email: currentUser[0].email },
-      { email_otp: "", email_otp_expiry: null, email: email }
+    // 3. Get current user
+    const user = await User.findById(userId).session(session);
+    if (!user) {
+      // log.warn('User not found', { userId });
+      return throwError(res, "User not found", HTTP_STATUS_CODE.NOT_FOUND);
+    }
+
+    // 4. Verify OTP
+    if (!user.email_otp || Date.now() > user.email_otp_expiry) {
+      return throwError(res, "OTP expired", HTTP_STATUS_CODE.BAD_REQUEST);
+    }
+
+    if (String(otp) !== String(user.email_otp)) {
+      return throwError(res, "Invalid OTP", HTTP_STATUS_CODE.BAD_REQUEST);
+    }
+
+    // 5. Update email
+    await User.findByIdAndUpdate(
+      userId,
+      {
+        $set: { email: email.toLowerCase() }, // Normalize to lowercase
+        $unset: { email_otp: "", email_otp_expiry: "" }
+      },
+      { session }
     );
 
-    rcResponse.message = "Email has been changed successfully";
+    await session.commitTransaction();
+
+    rcResponse.message = "Email updated successfully";
     return res.status(rcResponse.status).send(rcResponse);
-  } catch (error) {
-    return throwError(res);
+
+  } catch (error: any) {
+    await session.abortTransaction();
+
+    if (error.code === 11000) {
+      log.error('Duplicate email error', { error });
+      return throwError(res, "Email already in use", HTTP_STATUS_CODE.BAD_REQUEST);
+    }
+
+    log.error({ err: error }, 'Email verification failed');
+    return throwError(
+      res,
+      error.message || "Email verification failed",
+      HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR
+    );
+  } finally {
+    session.endSession();
+    // log.debug('Session ended');
   }
 };
 
@@ -412,6 +476,12 @@ export const updateUser = async (req: Request, res: Response) => {
         ...data,
         profileimage: imageUrl[0],
       };
+    } else if (data.deleteImage === "true") {
+      if (user.profileimage?.imageId) {
+        await deleteFromCloudinary(user.profileimage.imageId);
+      }
+
+      newData.profileimage = null;
     }
 
     rcResponse.data = await updateOne("User", { _id: userId }, newData);

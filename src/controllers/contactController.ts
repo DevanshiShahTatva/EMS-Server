@@ -132,3 +132,57 @@ export const deleteContacts = async (req: Request, res: Response) => {
         return throwError(res, error instanceof Error ? error.message : 'Unknown error', 400);
     }
 };
+
+export const updateContactStatus = async (req: Request, res: Response) => {
+    const log = appLogger.child({
+        method: 'updateContactStatus',
+        params: req.params,
+        body: req.body,
+    });
+
+    try {
+        const rcResponse = new ApiResponse();
+        const { id } = req.params;
+        const { status } = req.body;
+
+        // Validate ID format
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
+                success: false,
+                message: 'Invalid contact ID format',
+            });
+        }
+
+        // Validate status value
+        const validStatuses = ['pending', 'responded', 'spam'];
+        if (!validStatuses.includes(status)) {
+            return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
+                success: false,
+                message: `Status must be one of: ${validStatuses.join(', ')}`,
+            });
+        }
+
+        // Update status
+        const updatedContact = await Contact.findByIdAndUpdate(
+            id,
+            { status },
+            { new: true }
+        );
+
+        if (!updatedContact) {
+            return res.status(HTTP_STATUS_CODE.NOT_FOUND).json({
+                success: false,
+                message: 'Contact not found',
+            });
+        }
+
+        rcResponse.success = true;
+        rcResponse.message = 'Contact status updated successfully';
+        rcResponse.data = updatedContact;
+
+        return res.status(HTTP_STATUS_CODE.OK).json(rcResponse);
+    } catch (error) {
+        log.error({ err: error }, 'Error updating contact status');
+        return throwError(res, error instanceof Error ? error.message : 'Unknown error', 400);
+    }
+};

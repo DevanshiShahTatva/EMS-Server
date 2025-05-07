@@ -8,7 +8,7 @@ export interface PeriodRange {
   currentReference: string;
 }
 
-export type PeriodType = "yearly" | "monthly";
+export type PeriodType = "yearly" | "monthly" | "overall";
 
 export interface AnalyticsResponse<T = any> {
   period: PeriodType;
@@ -27,7 +27,9 @@ export function validatePeriod(period: PeriodType, reference: string) {
     yearly: /^\d{4}$/,
     monthly: /^\d{4}-(0[1-9]|1[0-2])$/,
   };
-
+  if (period === 'overall') {
+    return false;
+  }
   if (!patterns[period].test(reference)) {
     return true;
   }

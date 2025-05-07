@@ -1,9 +1,10 @@
 import { Request } from "express";
 import { Document, Model } from "mongoose";
 import User from "../models/signup.model";
-import Event from "../models/event.modes";
+import Event from "../models/event.model";
 import TicketBook from "../models/eventBooking.model";
 import jwt from "jsonwebtoken";
+import crypto from 'crypto';
 
 interface IModelMap {
   [key: string]: Model<Document>;
@@ -161,4 +162,9 @@ export {
   deleteOne,
   create,
   getUserIdFromToken,
+};
+
+export const validateEmail = (email: string): boolean => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
 };

@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { ApiResponse, throwError } from "../helper/common";
-import Event from "../models/event.modes";
+import Event from "../models/event.model";
 import TicketBook from "../models/eventBooking.model";
 import {
   fillEmptyIntervals,
@@ -96,7 +96,7 @@ export const totalRevenue = async (
     const reference = req.query.reference;
 
     // Validate input
-    if (validatePeriod(period, reference)) {
+    if (period !== "overall" && validatePeriod(period, reference)) {
       return throwError(
         res,
         `Invalid ${period} format`,
@@ -104,11 +104,21 @@ export const totalRevenue = async (
       );
     }
 
-    // Get date range with strict year boundaries
-    const { startDate, endDate, groupFormat, currentReference } = getDateRange(
-      period,
-      reference
-    );
+    // Get date range - modified for "overall" case
+    let startDate, endDate, groupFormat, currentReference;
+    
+    if (period === "overall") {
+      // For overall, we'll get all available years
+      startDate = new Date(0); // Very old date
+      endDate = new Date(); // Current date
+      groupFormat = "%Y"; // Group by year only
+      currentReference = "overall";
+    } else {
+      ({ startDate, endDate, groupFormat, currentReference } = getDateRange(
+        period,
+        reference
+      ));
+    }
 
     const pipeline: any[] = [
       {
@@ -122,7 +132,7 @@ export const totalRevenue = async (
       {
         $group: {
           _id: { $dateToString: { format: groupFormat, date: "$bookingDate" } },
-          total: { $sum: "$totalAmount" }, // Changed from avgValue
+          total: { $sum: "$totalAmount" },
           bookings: { $sum: 1 },
         },
       },
@@ -131,8 +141,10 @@ export const totalRevenue = async (
 
     const rawData = await TicketBook.aggregate(pipeline);
 
-    // Fixed empty interval generation
-    const filledData = fillEmptyIntervals(rawData, period, startDate, endDate);
+    // For overall, we don't need to fill empty intervals between years
+    const filledData = period === "overall" 
+      ? rawData 
+      : fillEmptyIntervals(rawData, period, startDate, endDate);
 
     const response = {
       period,
@@ -140,7 +152,7 @@ export const totalRevenue = async (
       startDate: startDate.toISOString(),
       endDate: endDate.toISOString(),
       data: filledData,
-      navigation: getNavigation(period, currentReference),
+      navigation: period === "overall" ? null : getNavigation(period, currentReference),
     };
 
     rcResponse.data = response;
@@ -159,8 +171,8 @@ export const totalBookingValue = async (
     const period = req.query.period || "yearly";
     const reference = req.query.reference;
 
-    // Validate period parameters
-    if (validatePeriod(period, reference)) {
+    // Validate period parameters (skip validation for 'overall')
+    if (period !== 'overall' && validatePeriod(period, reference)) {
       return throwError(
         res,
         `Invalid ${period} format`,
@@ -168,11 +180,19 @@ export const totalBookingValue = async (
       );
     }
 
-    // Get date range
-    const { startDate, endDate, currentReference } = getDateRange(
-      period,
-      reference
-    );
+    // Get date range - modified for 'overall' case
+    let startDate, endDate, currentReference;
+    
+    if (period === 'overall') {
+      startDate = new Date(0); // Unix epoch
+      endDate = new Date(); // Current date
+      currentReference = 'overall';
+    } else {
+      ({ startDate, endDate, currentReference } = getDateRange(
+        period,
+        reference
+      ));
+    }
 
     // Aggregation pipeline
     const pipeline: any[] = [
@@ -224,7 +244,7 @@ export const totalBookingValue = async (
         totalValue: item.totalValue,
         bookings: item.totalBookings,
       })),
-      navigation: getNavigation(period, currentReference),
+      navigation: period === 'overall' ? null : getNavigation(period, currentReference),
     };
 
     rcResponse.data = response;

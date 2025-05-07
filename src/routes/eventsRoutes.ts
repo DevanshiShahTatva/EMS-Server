@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { validateToken } from "../middlewares/checkToken";
+import { validateAdminToken, validateToken } from "../middlewares/checkToken";
 import {
   deleteEvent,
   feedbackEvent,
@@ -15,22 +15,15 @@ const upload = multer();
 
 const eventsRoutes = Router();
 
-eventsRoutes.post(
-  "/",
-  validateToken,
-  upload.array("images", 5),
-  postEvent
-);
+// PUBLIC
 eventsRoutes.get("/", validateToken, getEvents);
 eventsRoutes.get("/:id", validateToken, getEventById);
-eventsRoutes.put(
-  "/:id",
-  validateToken,
-  upload.array("images", 5),
-  putEvent
-);
-eventsRoutes.delete("/:id", validateToken, deleteEvent);
 eventsRoutes.post("/:id/like", validateToken, likeEvent);
 eventsRoutes.post("/:id/feedback", validateToken, feedbackEvent);
+
+// ADMIN ONLY
+eventsRoutes.post("/", validateAdminToken, upload.array("images", 5), postEvent);
+eventsRoutes.put("/:id", validateAdminToken, upload.array("images", 5), putEvent);
+eventsRoutes.delete("/:id", validateAdminToken, deleteEvent);
 
 export default eventsRoutes;
