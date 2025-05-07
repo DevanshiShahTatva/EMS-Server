@@ -15,7 +15,7 @@
     "postinstall": "npm install @types/node --no-save",
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "nodemon src/server.ts",
-    "build": "npm install @types/node && tsc",
+    "build": "npm install @types/node && tsc && cpx \"src/emails/**/*\" dist/emails",
     "start": "node dist/server.js"
   },
   "devDependencies": {
