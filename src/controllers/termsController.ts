@@ -1,4 +1,3 @@
-// src/controllers/termsController.ts
 import { Request, Response } from 'express';
 import Terms from '../models/terms.model';
 import { appLogger } from '../helper/logger';
@@ -7,7 +6,7 @@ import { HTTP_STATUS_CODE } from '../utilits/enum';
 
 export const getTerms = async (req: Request, res: Response) => {
   const log = appLogger.child({ method: 'getTerms' });
-  
+
   try {
     const terms = await Terms.getSingleton();
     res.status(HTTP_STATUS_CODE.OK).json({
@@ -22,14 +21,14 @@ export const getTerms = async (req: Request, res: Response) => {
 };
 
 export const updateTerms = async (req: Request, res: Response) => {
-  const log = appLogger.child({ 
+  const log = appLogger.child({
     method: 'updateTerms',
-    body: req.body 
+    body: req.body
   });
-  
+
   try {
     const { content } = req.body;
-    
+
     if (!content) {
       log.warn('Validation failed - content is required');
       return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
@@ -54,10 +53,9 @@ export const updateTerms = async (req: Request, res: Response) => {
   }
 };
 
-// Only if you need deletion capability
 export const resetTerms = async (req: Request, res: Response) => {
   const log = appLogger.child({ method: 'resetTerms' });
-  
+
   try {
     await Terms.deleteMany({});
     log.info('Terms reset successfully');
