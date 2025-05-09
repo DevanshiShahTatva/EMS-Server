@@ -1,9 +1,22 @@
 import mongoose from "mongoose";
-import { Request } from "express";
-import { ApiResponse, find, findOne, getUserIdFromToken, throwError } from "../helper/common";
+import { Request, Response } from "express";
+import {
+  ApiResponse,
+  find,
+  findOne,
+  getUserIdFromToken,
+  throwError,
+} from "../helper/common";
 import TicketBook from "../models/eventBooking.model";
 import { HTTP_STATUS_CODE } from "../utilits/enum";
 import { sendBookingConfirmationEmail } from "../helper/nodemailer";
+import Stripe from "stripe";
+import Event from "../models/event.model";
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+  apiVersion: "2023-08-16" as any,
+  typescript: true,
+});
 
 export const postTicketBook = async (req: Request, res: any) => {
   const session = await mongoose.startSession();
@@ -18,7 +31,11 @@ export const postTicketBook = async (req: Request, res: any) => {
 
     // validate body data
     if (![eventId, ticketId, seats].every(Boolean) || seats < 1) {
-      return throwError(res, "Invalid request Parameters", HTTP_STATUS_CODE.BAD_REQUEST);
+      return throwError(
+        res,
+        "Invalid request Parameters",
+        HTTP_STATUS_CODE.BAD_REQUEST
+      );
     }
 
     // validate event and ticket
@@ -31,11 +48,19 @@ export const postTicketBook = async (req: Request, res: any) => {
       (ticket: any) => ticket._id.toString() === ticketId
     );
     if (!selectedTicket) {
-      return throwError(res, "Ticket type not found", HTTP_STATUS_CODE.NOT_FOUND);
+      return throwError(
+        res,
+        "Ticket type not found",
+        HTTP_STATUS_CODE.NOT_FOUND
+      );
     }
 
     if (selectedTicket.totalBookedSeats + seats > selectedTicket.totalSeats) {
-      return throwError(res, "Not enough available seats", HTTP_STATUS_CODE.BAD_REQUEST);
+      return throwError(
+        res,
+        "Not enough available seats",
+        HTTP_STATUS_CODE.BAD_REQUEST
+      );
     }
 
     const updateResult = await mongoose.model("Event").updateOne(
@@ -50,7 +75,11 @@ export const postTicketBook = async (req: Request, res: any) => {
     );
 
     if (updateResult.matchedCount === 0) {
-      return throwError(res, "Failed to update ticket seats", HTTP_STATUS_CODE.BAD_REQUEST);
+      return throwError(
+        res,
+        "Failed to update ticket seats",
+        HTTP_STATUS_CODE.BAD_REQUEST
+      );
     }
 
     // Store the created booking in a variable
@@ -72,9 +101,12 @@ export const postTicketBook = async (req: Request, res: any) => {
     session.endSession();
 
     // EMAIL SERVICE
-    if (process.env.SEND_EMAILS === 'true') {
+    if (process.env.SEND_EMAILS === "true") {
       try {
-        const userData = await mongoose.model('User').findById(user).select('email name');
+        const userData = await mongoose
+          .model("User")
+          .findById(user)
+          .select("email name");
 
         if (userData) {
           await sendBookingConfirmationEmail(
@@ -84,11 +116,11 @@ export const postTicketBook = async (req: Request, res: any) => {
             selectedTicket.type,
             seats,
             totalAmount,
-            booking._id 
+            booking._id
           );
         }
       } catch (emailError) {
-        console.error('Failed to send booking email:', emailError);
+        console.error("Failed to send booking email:", emailError);
       }
     }
 
@@ -100,7 +132,11 @@ export const postTicketBook = async (req: Request, res: any) => {
     session.endSession();
 
     if (error.code === 11000) {
-      return throwError(res, "Duplicate payment detected", HTTP_STATUS_CODE.BAD_REQUEST);
+      return throwError(
+        res,
+        "Duplicate payment detected",
+        HTTP_STATUS_CODE.BAD_REQUEST
+      );
     }
     return throwError(res);
   }
@@ -124,6 +160,104 @@ export const getTicketBooks = async (req: Request, res: any) => {
     );
     return res.status(rcResponse.status).send(rcResponse);
   } catch (error) {
+    return throwError(res);
+  }
+};
+
+export const cancelBookedEvent = async (req: Request, res: Response) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const rcResponse = new ApiResponse();
+    const { bookingId } = req.params;
+    const userId = await getUserIdFromToken(req);
+
+    // 1. Find the booking
+    const booking = await TicketBook.findById(bookingId)
+      .populate("event")
+      .session(session);
+
+    if (!booking) {
+      await session.abortTransaction();
+      return throwError(res, "Booking not found", 404);
+    }
+
+    // 2. Verify ownership
+    if (booking.user.toString() !== userId.toString()) {
+      await session.abortTransaction();
+      return throwError(res, "Unauthorized to cancel this booking", 403);
+    }
+
+    // 3. Check if event is in the past
+    // if (booking.event.startDateTime < new Date()) {
+    //   await session.abortTransaction();
+    //   return throwError(res, "Cannot cancel bookings for past events", 400);
+    // }
+
+    // 4. Process Stripe refund
+    // const refund = await stripe.refunds.create(
+    //   {
+    //     payment_intent: booking.paymentId,
+    //     reason: "requested_by_customer",
+    //   },
+    //   {
+    //     idempotencyKey: bookingId, // Prevent duplicate refunds
+    //   }
+    // );
+
+    const paymentSession = await stripe.checkout.sessions.retrieve(
+      booking.paymentId
+    );
+    const paymentId = paymentSession.payment_intent as string;
+
+    if (!paymentId) {
+      return throwError(
+        res,
+        "No valid PaymentIntent found for this Checkout Session",
+        400
+      );
+    }
+
+    const refund = await stripe.refunds.create({
+      payment_intent: paymentId,
+      amount: booking.totalAmount ? booking.totalAmount : undefined,
+      reason: "requested_by_customer",
+    });
+
+    // 5. Update ticket availability
+    const event = await Event.findById(booking.event).session(session);
+    const ticketType = event.tickets.find(
+      (t: any) => t.id.toString() === booking.ticket
+    );
+
+    if (!ticketType) {
+      await session.abortTransaction();
+      return throwError(res, "Ticket type no longer exists", 400);
+    }
+
+    ticketType.totalBookedSeats = Math.max(
+      0,
+      ticketType.totalBookedSeats - booking.seats
+    );
+
+    // 6. Save changes and delete booking
+    await event.save({ session });
+    await TicketBook.deleteOne({ _id: bookingId }).session(session);
+
+    await session.commitTransaction();
+
+    rcResponse.message = "Booking cancelled and refund processed";
+    rcResponse.data = {
+      refundId: refund.id,
+      amount: refund.amount,
+      eventTitle: event.title,
+      cancelledAt: new Date(),
+    };
+
+    res.status(rcResponse.status).send(rcResponse);
+  } catch (error) {
+    console.log("Error::", error);
     return throwError(res);
   }
 };
