@@ -50,3 +50,40 @@ export const feedbackEvent = async (req: Request, res: Response): Promise<void> 
     }
   }
   
+export const getFeedbackByUserId = async (req: Request, res: Response) => {
+    try {
+        const rcResponse = new ApiResponse();
+        const userId = new Types.ObjectId(getUserIdFromToken(req));
+        if(!userId){
+            res.status(rcResponse.status).json({message:'User not found.'})
+        }
+        const feedbackResult = await FeedbackModel.find({userId:userId})
+        if (!feedbackResult || feedbackResult.length === 0) {
+        return throwError(res, "No feedbacks found");
+        }
+        rcResponse.data = feedbackResult;
+        return res.status(rcResponse.status).send(rcResponse);
+    } catch (error) {
+        return throwError(res);
+    }
+};
+export const getFeedbackByEventId = async (req: Request, res: Response) => {
+    try {
+        const rcResponse = new ApiResponse();
+        const userId = getUserIdFromToken(req);
+        const eventId = req.params.id;
+        const event = await Event.findById(eventId)
+        if (!event) {
+            res.status(rcResponse.status).json({ message: 'Event not found.' })
+            return
+        }
+        const feedbackResult = await FeedbackModel.find({eventId:eventId})
+        if (!feedbackResult || feedbackResult.length === 0) {
+        return throwError(res, "No feedbacks found");
+        }
+        rcResponse.data = feedbackResult;
+        return res.status(rcResponse.status).send(rcResponse);
+    } catch (error) {
+        return throwError(res);
+    }
+};

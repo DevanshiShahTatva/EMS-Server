@@ -6,6 +6,7 @@ import dashboardRoutes from "./dashboardRoutes";
 import contactRoutes from "./contactRoutes";
 import faqRoutes from "./faqRoutes";
 import termsRoutes from "./termsRoutes";
+import feedbackRoutes from "./feedbackRoutes";
 
 const router = Router();
 router.use(authRoutes);
@@ -15,5 +16,5 @@ router.use("/dashboard/analytics", dashboardRoutes);
 router.use("/contact-us", contactRoutes);
 router.use("/faq", faqRoutes);
 router.use("/terms-and-conditions", termsRoutes);
-
+router.use("/feedbacks",feedbackRoutes);
 export default router;
