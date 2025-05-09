@@ -233,7 +233,7 @@ export const likeEvent = async (req: Request, res: Response) => {
     const rcResponse = new ApiResponse();
     const eventId = req.params.id;
     const userId = new Types.ObjectId(getUserIdFromToken(req));
-
+    
     // Solution 1: Use native Mongoose methods with proper typing
     const event = await Event.findById(eventId).select("likes").lean() as any;
     
@@ -276,3 +276,4 @@ export const likeEvent = async (req: Request, res: Response) => {
     return throwError(res);
   }
 };
+
