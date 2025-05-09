@@ -13,8 +13,8 @@ export const feedbackEvent = async (req: Request, res: Response): Promise<void> 
       const rcResponse = new ApiResponse();
       const { rating, description } = req.body
       const eventId = req.params.id;
-      if (!rating || !description) {
-        res.status(rcResponse.status).json({ message: 'Rating, Description are required.' })
+      if (!rating) {
+        res.status(rcResponse.status).json({ message: 'Rating is required.' })
         return
       }
       //Checking if event is available
@@ -37,12 +37,14 @@ export const feedbackEvent = async (req: Request, res: Response): Promise<void> 
         rating,
         description,
         eventId,
+        userId
       })
-  
-      res.status(rcResponse.status).json({
-        message: 'Feedback submitted successfully.',
-        feedbackId: feedback._id,
-      })
+      rcResponse.data = {
+        success:"success",
+        message:"Feedback submitted successfully!",
+        feedbackId:feedback._id
+      }
+      res.status(rcResponse.status).send(rcResponse);
     } catch (error) {
       return throwError(res);
     }
