@@ -9,7 +9,10 @@ import {
 } from "../helper/common";
 import TicketBook from "../models/eventBooking.model";
 import { HTTP_STATUS_CODE } from "../utilits/enum";
-import { sendBookingConfirmationEmail } from "../helper/nodemailer";
+import {
+  cancelEventTicketMail,
+  sendBookingConfirmationEmail,
+} from "../helper/nodemailer";
 import Stripe from "stripe";
 import Event from "../models/event.model";
 
@@ -175,6 +178,7 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
 
     // 1. Find the booking
     const booking = await TicketBook.findById(bookingId)
+      .populate("user")
       .populate("event")
       .session(session);
 
@@ -184,28 +188,12 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
     }
 
     // 2. Verify ownership
-    if (booking.user.toString() !== userId.toString()) {
+    if (booking.user._id.toString() !== userId.toString()) {
       await session.abortTransaction();
       return throwError(res, "Unauthorized to cancel this booking", 403);
     }
 
     // 3. Check if event is in the past
-    // if (booking.event.startDateTime < new Date()) {
-    //   await session.abortTransaction();
-    //   return throwError(res, "Cannot cancel bookings for past events", 400);
-    // }
-
-    // 4. Process Stripe refund
-    // const refund = await stripe.refunds.create(
-    //   {
-    //     payment_intent: booking.paymentId,
-    //     reason: "requested_by_customer",
-    //   },
-    //   {
-    //     idempotencyKey: bookingId, // Prevent duplicate refunds
-    //   }
-    // );
-
     const paymentSession = await stripe.checkout.sessions.retrieve(
       booking.paymentId
     );
@@ -255,6 +243,13 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
       cancelledAt: new Date(),
     };
 
+    cancelEventTicketMail(
+      booking.user.email,
+      booking.user.name,
+      booking.event.title,
+      booking.ticket,
+      booking.totalAmount
+    );
     res.status(rcResponse.status).send(rcResponse);
   } catch (error) {
     console.log("Error::", error);

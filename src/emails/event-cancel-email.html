@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ticket Cancellation and Refund Confirmation</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f4;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 600px;
+      margin: 20px auto;
+      background-color: #ffffff;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+    .header {
+      text-align: center;
+      padding: 20px 0;
+      background-color: #007bff;
+      color: #ffffff;
+      border-radius: 8px 8px 0 0;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 24px;
+    }
+    .content {
+      padding: 20px;
+      line-height: 1.6;
+    }
+    .content p {
+      margin: 10px 0;
+    }
+    .details {
+      background-color: #f9f9f9;
+      padding: 15px;
+      border-radius: 5px;
+      margin: 15px 0;
+    }
+    .details p {
+      margin: 5px 0;
+      font-size: 14px;
+    }
+    .footer {
+      text-align: center;
+      padding: 20px;
+      font-size: 12px;
+      color: #666666;
+    }
+    .button {
+      display: inline-block;
+      padding: 10px 20px;
+      margin: 10px 0;
+      background-color: #007bff;
+      color: #ffffff;
+      text-decoration: none;
+      border-radius: 5px;
+    }
+    @media only screen and (max-width: 600px) {
+      .container {
+        margin: 10px;
+        padding: 10px;
+      }
+      .header h1 {
+        font-size: 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Ticket Cancellation Confirmation</h1>
+    </div>
+    <div class="content">
+      <p>Dear {{userName}},</p>
+      <p>We’re sorry to hear you’ve canceled your ticket for <strong>{{eventName}}</strong>. Your cancellation has been processed, and a refund has been initiated.</p>
+      <div class="details">
+        <p><strong>Ticket ID:</strong> {{ticketId}}</p>
+        <p><strong>Event:</strong> {{eventName}}</p>
+        <p><strong>Refund Amount:</strong> ${{refundAmount}}</p>
+        <p><strong>Status:</strong> Refund Initiated</p>
+      </div>
+      <p>The refund will be processed to your original payment method and should appear in your account within 5-10 business days, depending on your bank or card issuer.</p>
+      <p>If you have any questions or need further assistance, please contact our support team at <a href="mailto:support@evently.com">support@eventorganizer.com</a>.</p>
+      <p>Thank you for choosing us, and we hope to see you at future events!</p>
+      <p>Best regards,<br>The Evently Team</p>
+    </div>
+    <div class="footer">
+      <p>&copy; 2025 Event Organizer. All rights reserved.</p>
+      <p><a href="https://eventlyclient.netlify.app/">Visit our website</a> | <a href="https://eventlyclient.netlify.app/contact-us">Contact Support</a></p>
+    </div>
+  </div>
+</body>
+</html>
