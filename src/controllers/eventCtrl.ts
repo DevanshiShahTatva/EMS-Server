@@ -11,7 +11,7 @@ import {
 } from "../helper/common";
 import { deleteFromCloudinary, saveFileToCloud } from "../helper/cloudniry";
 import { HTTP_STATUS_CODE } from "../utilits/enum";
-import Event, { FeedbackModel } from "../models/event.model";
+import Event from "../models/event.model";
 import mongoose, { Types } from "mongoose";
 import TicketBook from "../models/eventBooking.model";
 
@@ -233,7 +233,7 @@ export const likeEvent = async (req: Request, res: Response) => {
     const rcResponse = new ApiResponse();
     const eventId = req.params.id;
     const userId = new Types.ObjectId(getUserIdFromToken(req));
-
+    
     // Solution 1: Use native Mongoose methods with proper typing
     const event = await Event.findById(eventId).select("likes").lean() as any;
     
@@ -277,32 +277,3 @@ export const likeEvent = async (req: Request, res: Response) => {
   }
 };
 
-export const feedbackEvent = async(req:Request,res:Response)=>{
-  try {
-    const rcResponse = new ApiResponse()
-
-    const { name, email, rating, description } = req.body
-    
-    if (!name || !email || !rating) {
-      return throwError(res, 'Name, email, and rating are required', HTTP_STATUS_CODE.BAD_REQUEST)
-    }
-
-    // Save feedback to DB
-    const feedback = await FeedbackModel.create({
-      name,
-      email,
-      rating,
-      description,
-    })
-
-    rcResponse.data = {
-      message: 'Feedback submitted successfully',
-      feedbackId: feedback._id,
-    }
-
-    return res.status(rcResponse.status).send(rcResponse)
-
-  } catch (res) {
-    return throwError(res)
-  }
-}

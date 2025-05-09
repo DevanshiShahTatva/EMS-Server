@@ -2,13 +2,13 @@ import { Router } from "express";
 import { validateAdminToken, validateToken } from "../middlewares/checkToken";
 import {
   deleteEvent,
-  feedbackEvent,
   getEventById,
   getEvents,
   likeEvent,
   postEvent,
   putEvent,
 } from "../controllers/eventCtrl";
+import { feedbackEvent } from "../controllers/feedbackEventCtrl";
 import multer from "multer";
 
 const upload = multer();
