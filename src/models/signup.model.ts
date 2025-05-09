@@ -24,6 +24,10 @@ const signupSchema = new mongoose.Schema({
     default: null
   },
   address: { type: String, default: null },
+  country: { type: String, default: null },
+  state: { type: String, default: null },
+  city: { type: String, default: null },
+  zipcode: { type: String, default: null },
   otp: { type: String },
   otp_expiry: { type: Date },
   email_otp: { type: String },

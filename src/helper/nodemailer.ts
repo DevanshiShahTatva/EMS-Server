@@ -20,7 +20,6 @@ const transporter = nodemailer.createTransport({
 
 // Function to send the welcome email asynchronously
 export const sendWelcomeEmail = async (userEmail: string, userName: string) => {
-
   const emailTemplate = fs.readFileSync(
     path.join(__dirname, "../emails/welcome-email.html"), // Path to your HTML file
     "utf-8"
@@ -39,9 +38,9 @@ export const sendWelcomeEmail = async (userEmail: string, userName: string) => {
       {
         filename: "main_logo.png",
         path: path.join(__dirname, "../emails/assets/main_logo.png"),
-        cid: "companyLogo"
+        cid: "companyLogo",
       },
-    ]
+    ],
   };
 
   try {
@@ -51,7 +50,11 @@ export const sendWelcomeEmail = async (userEmail: string, userName: string) => {
   }
 };
 
-export const sendOtpToEmail = async (email: string, otp: number, name: string) => {
+export const sendOtpToEmail = async (
+  email: string,
+  otp: number,
+  name: string
+) => {
   const emailOtpTemplate = fs.readFileSync(
     path.join(__dirname, "../emails/otp-verification-email-template.html"),
     "utf-8"
@@ -71,9 +74,9 @@ export const sendOtpToEmail = async (email: string, otp: number, name: string) =
       {
         filename: "main_logo.png",
         path: path.join(__dirname, "../emails/assets/main_logo.png"),
-        cid: "companyLogo"
+        cid: "companyLogo",
       },
-    ]
+    ],
   };
 
   try {
@@ -83,7 +86,11 @@ export const sendOtpToEmail = async (email: string, otp: number, name: string) =
   }
 };
 
-export const sendOtpForEmailChange = async (email: string, otp: number, name: string) => {
+export const sendOtpForEmailChange = async (
+  email: string,
+  otp: number,
+  name: string
+) => {
   const emailOtpTemplate = fs.readFileSync(
     path.join(__dirname, "../emails/otp-verification-email-template.html"),
     "utf-8"
@@ -103,9 +110,9 @@ export const sendOtpForEmailChange = async (email: string, otp: number, name: st
       {
         filename: "main_logo.png",
         path: path.join(__dirname, "../emails/assets/main_logo.png"),
-        cid: "companyLogo"
+        cid: "companyLogo",
       },
-    ]
+    ],
   };
 
   try {
@@ -130,9 +137,12 @@ export const resetPasswordSuccessMail = async (email: string, name: string) => {
   }
 };
 
-
 // CONTACT US - SYSTEM TO USER
-export const sendContactConfirmationEmail = async (email: string, name: string, subject: string) => {
+export const sendContactConfirmationEmail = async (
+  email: string,
+  name: string,
+  subject: string
+) => {
   try {
     const emailTemplate = fs.readFileSync(
       path.join(__dirname, "../emails/contact-confirmation.html"),
@@ -153,14 +163,17 @@ export const sendContactConfirmationEmail = async (email: string, name: string, 
         {
           filename: "main_logo.png",
           path: path.join(__dirname, "../emails/assets/main_logo.png"),
-          cid: "companyLogo"
+          cid: "companyLogo",
         },
-      ]
+      ],
     };
 
     await transporter.sendMail(mailOptions);
   } catch (error) {
-    console.error("Error while sending email to User for Confirmation contact:", error);
+    console.error(
+      "Error while sending email to User for Confirmation contact:",
+      error
+    );
   }
 };
 
@@ -193,10 +206,12 @@ export const sendContactNotificationToAdmin = async (
 
     await transporter.sendMail(mailOptions);
   } catch (error) {
-    console.error("Error while sending email to Admin from User to Contact Us:", error);
+    console.error(
+      "Error while sending email to Admin from User to Contact Us:",
+      error
+    );
   }
 };
-
 
 export const sendBookingConfirmationEmail = async (
   userEmail: string,
@@ -231,14 +246,54 @@ export const sendBookingConfirmationEmail = async (
         {
           filename: "main_logo.png",
           path: path.join(__dirname, "../emails/assets/main_logo.png"),
-          cid: "companyLogo"
+          cid: "companyLogo",
         },
-      ]
+      ],
     };
     await transporter.sendMail(mailOptions);
-
   } catch (error) {
     console.error("Error sending booking confirmation:", error);
     throw error;
+  }
+};
+
+// cancel event ticket and refunc mail
+
+export const cancelEventTicketMail = async (
+  userEmail: string,
+  userName: string,
+  eventName: string,
+  ticketId: string,
+  refundAmount: string
+) => {
+  const emailTemplate = fs.readFileSync(
+    path.join(__dirname, "../emails/event-cancel-email.html"), // Path to your HTML file
+    "utf-8"
+  );
+
+  const customizedHtml = emailTemplate
+    .replace(/\{{ticketId}}/g, ticketId)
+    .replace(/\{{eventName}}/g, eventName)
+    .replace(/\{{userName}}/g, userName)
+    .replace(/\{{refundAmount}}/g, refundAmount);
+
+  const mailOptions = {
+    from: `Evently <${process.env.EMAIL_USER}>`,
+    to: userEmail,
+    subject: "Ticket Cancellation",
+    html: customizedHtml,
+    attachments: [
+      {
+        filename: "main_logo.png",
+        path: path.join(__dirname, "../emails/assets/main_logo.png"),
+        cid: "companyLogo",
+      },
+    ],
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+  } catch (error) {
+    console.error("Error while sending welcome email:", error);
   }
 };
