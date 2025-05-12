@@ -267,6 +267,17 @@ export const logoutUser = async (req: Request, res: Response) => {
   }
 };
 
+export const getAllUsers = async (req: Request, res: Response) => {
+  try {
+    const rcResponse = new ApiResponse();
+    const users = await User.find();
+    rcResponse.data = users;
+    return res.status(rcResponse.status).send(rcResponse);
+  } catch (error) {
+    return throwError(res);
+  }
+};
+
 export const userDetails = async (req: Request, res: Response) => {
   try {
     const rcResponse = new ApiResponse();
