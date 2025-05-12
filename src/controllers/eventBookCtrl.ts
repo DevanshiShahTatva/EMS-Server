@@ -15,6 +15,7 @@ import {
 } from "../helper/nodemailer";
 import Stripe from "stripe";
 import Event from "../models/event.model";
+import { appLogger } from "../helper/logger";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-08-16" as any,
@@ -231,7 +232,10 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
 
     // 6. Save changes and delete booking
     await event.save({ session });
-    await TicketBook.deleteOne({ _id: bookingId }).session(session);
+    await TicketBook.findByIdAndUpdate(
+      { _id: bookingId },
+      { bookingStatus: "cancelled" }
+    ).session(session);
 
     await session.commitTransaction();
 
@@ -256,3 +260,50 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
     return throwError(res);
   }
 };
+
+export const validateTicket = async (req: Request, res: Response) => {
+   const log = appLogger.child({ method: 'validateTicket', body: req.body });
+
+  try {
+    const { ticketId } = req.body
+
+    if (!ticketId) {
+      return res.status(HTTP_STATUS_CODE.NOT_FOUND).json({
+        success: false,
+        message: "Invalid Ticket"
+      });
+    }
+
+    const isValidTicket = await TicketBook.findById(ticketId).populate("event");
+    if (!isValidTicket) {
+      return throwError(res, 'Ticket not found', HTTP_STATUS_CODE.NOT_FOUND);
+    }
+
+     // Check if already marked as attended
+    if (isValidTicket.isAttended) {
+      return res.status(400).json({
+        success: false,
+        message: "This ticket has already been used to attend the event.",
+      });
+    }
+
+    // Ensure event is populated and not expired
+    const currentTime = new Date();
+    if (!isValidTicket.event || new Date(isValidTicket.event.endDateTime) < currentTime) {
+      return res.status(400).json({ success: false, message: "Ticket is no longer valid as the event has already ended" });
+    }
+
+    // Mark the ticket as validated
+    isValidTicket.isAttended = true;
+    await isValidTicket.save();
+
+    res.status(HTTP_STATUS_CODE.OK).json({
+      success: true,
+      data: "Validate",
+      message: 'Ticket validated successfully'
+    });
+  } catch (error) {
+    log.error({ err: error }, 'Error validating your tickets');
+    return throwError(res, 'Failed to validate ticket', HTTP_STATUS_CODE.BAD_REQUEST);
+  }
+}
