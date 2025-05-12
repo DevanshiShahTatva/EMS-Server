@@ -19,12 +19,22 @@ import {
   sendOtpForEmailChange,
 } from "../helper/nodemailer";
 import User from "../models/signup.model";
+import PointSettings from "../models/pointSetting.model";
 import mongoose, { Types } from "mongoose";
 import { deleteFromCloudinary, saveFileToCloud } from "../helper/cloudniry";
 import crypto from 'crypto';
 import { appLogger } from "../helper/logger";
 
 dotenv.config();
+
+const ensurePointSettings = async () => {
+  const exists = await PointSettings.exists({});
+  if (!exists) {
+    await PointSettings.create({
+      conversionRate: 10,
+    });
+  }
+};
 
 export const registerUser = async (req: Request, res: Response) => {
   try {
@@ -107,6 +117,7 @@ export const loginUser = async (req: Request, res: Response) => {
       };
       rcResponse.data = userDataWithToken;
       rcResponse.message = "You have login successfully.";
+      await ensurePointSettings();
       return res.status(rcResponse.status).send(rcResponse);
     } else {
       // validation for if email is exists

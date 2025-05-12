@@ -2,7 +2,6 @@ import { Request, Response } from "express";
 import {
   ApiResponse,
   create,
-  find,
   findOne,
   updateOne,
   throwError,
@@ -118,7 +117,13 @@ export const getEventById = async (req: Request, res: Response) => {
       return throwError(res, "Event not found");
     }
 
+    const userPoints = await mongoose
+      .model("User")
+      .findById(userId)
+      .select("current_points");
+
     rcResponse.data = eventResult[0];
+    rcResponse.data.userPoints = userPoints.current_points;
     return res.status(rcResponse.status).send(rcResponse);
   } catch (error) {
     return throwError(res);

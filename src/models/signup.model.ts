@@ -23,6 +23,7 @@ const signupSchema = new mongoose.Schema({
     },
     default: null
   },
+  current_points: { type: Number, default: 0 },
   address: { type: String, default: null },
   country: { type: String, default: null },
   state: { type: String, default: null },
