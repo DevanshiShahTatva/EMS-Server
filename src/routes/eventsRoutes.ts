@@ -8,6 +8,7 @@ import {
   postEvent,
   putEvent,
 } from "../controllers/eventCtrl";
+import { feedbackEvent, getFeedbackByEventId, getFeedbackByUserId } from "../controllers/feedbackEventCtrl";
 import multer from "multer";
 
 const upload = multer();
@@ -18,6 +19,8 @@ const eventsRoutes = Router();
 eventsRoutes.get("/", validateToken, getEvents);
 eventsRoutes.get("/:id", validateToken, getEventById);
 eventsRoutes.post("/:id/like", validateToken, likeEvent);
+eventsRoutes.post("/:id/feedback", validateToken, feedbackEvent);
+eventsRoutes.get("/:id/feedbacks",validateToken,getFeedbackByEventId);
 
 // ADMIN ONLY
 eventsRoutes.post("/", validateAdminToken, upload.array("images", 5), postEvent);
