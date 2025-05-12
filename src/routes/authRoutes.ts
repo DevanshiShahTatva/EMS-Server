@@ -9,9 +9,10 @@ import {
   updateUser,
   settingResetPassword,
   settingResetEmail,
-  settingVerifyEmail
+  settingVerifyEmail,
+  getAllUsers,
 } from "../controllers/authUserCtrl";
-import { validateToken } from "../middlewares/checkToken";
+import { validateAdminToken, validateToken } from "../middlewares/checkToken";
 import multer from "multer";
 
 const upload = multer();
@@ -34,5 +35,8 @@ authRoutes.put("/reset_setting_password", validateToken, settingResetPassword);
 // UPDATE USER EMAIL
 authRoutes.put("/reset_setting_email", validateToken, settingResetEmail);
 authRoutes.put("/verify_setting_email", validateToken, settingVerifyEmail);
+
+// ADMIN ONLY
+authRoutes.get("/all_users", validateAdminToken, getAllUsers);
 
 export default authRoutes;
