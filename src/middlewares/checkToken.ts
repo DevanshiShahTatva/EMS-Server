@@ -59,3 +59,36 @@ export const validateAdminToken = [
   validateToken,
   adminOnly
 ];
+
+
+// 4. Staff-Only Middleware (depends on validateToken)
+export const staffOnly = (req: Request, res: Response, next: NextFunction) => {
+  const log = appLogger.child({ middleware: 'adminOnly' });
+
+  try {
+    if (!(req as any).user) {
+      return throwError(res, "Authentication required", HTTP_STATUS_CODE.UNAUTHORIZED); // 401
+    }
+
+    const user = (req as any).user;
+    if (user.role !== 'staff') {
+      return throwError(res, "Staff permissions required", HTTP_STATUS_CODE.FORBIDDEN); // 403
+    }
+
+    next();
+
+  } catch (error) {
+    log.error({ err: error }, "Staff verification failed");
+    return throwError(
+      res,
+      error instanceof Error ? error.message : "Authorization failed",
+      HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR // 500
+    );
+  }
+};
+
+// 5. Combined Middleware (validateToken + adminOnly in one step)
+export const validateStaffToken = [
+  validateToken,
+  staffOnly
+];
