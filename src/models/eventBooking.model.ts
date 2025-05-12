@@ -7,6 +7,7 @@ const ticketBookingSchema = new mongoose.Schema({
   seats: { type: Number, require: true, min: 1 },
   totalAmount: { type: Number, require: true },
   paymentId: { type: String, require: true, unique: true },
+  isAttended: { type: Boolean, default: false },
   bookingDate: { type: Date, default: Date.now },
   bookingStatus: { type: String, default: "booked" }
 });
