@@ -14,18 +14,25 @@ cloudinary.config({
 // Helper function with better error handling
 const uploadFromBuffer = (file: Express.Multer.File): Promise<any> => {
   return new Promise((resolve, reject) => {
+    // Check if file buffer exists
     if (!file?.buffer) {
       return reject(new Error("Invalid file buffer"));
     }
 
+    // Create Cloudinary stream
     const uploadStream = cloudinary.uploader.upload_stream(
       {
         folder: "event-images",
-        allowed_formats: ["jpg", "jpeg", "png", "webp"],
-        resource_type: "auto",
+        resource_type: "image",
+        // allowed_formats: ["jpg", "jpeg", "png", "webp"],
+        // resource_type: "auto"
       },
       (error, result) => {
-        if (error) return reject(error);
+        if (error) {
+          console.error("Cloudinary upload error:", error);
+          return reject(error);
+        }
+
         if (!result?.secure_url || !result?.public_id) {
           return reject(new Error("Cloudinary upload failed"));
         }
@@ -36,6 +43,7 @@ const uploadFromBuffer = (file: Express.Multer.File): Promise<any> => {
       }
     );
 
+    // Pipe buffer to stream
     const readableStream = new Readable();
     readableStream.push(file.buffer);
     readableStream.push(null);
@@ -49,7 +57,7 @@ export const saveFileToCloud = async (
   try {
     return await uploadFromBuffer(file);
   } catch (error) {
-    console.error("Cloudinary upload error:", error);
+    console.error("File upload failed:", error);
     throw new Error(
       `File upload failed: ${error instanceof Error ? error.message : "Unknown error"}`
     );

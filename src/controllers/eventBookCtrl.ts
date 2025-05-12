@@ -232,7 +232,10 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
 
     // 6. Save changes and delete booking
     await event.save({ session });
-    await TicketBook.deleteOne({ _id: bookingId }).session(session);
+    await TicketBook.findByIdAndUpdate(
+      { _id: bookingId },
+      { bookingStatus: "cancelled" }
+    ).session(session);
 
     await session.commitTransaction();
 

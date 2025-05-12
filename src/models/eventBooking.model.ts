@@ -9,6 +9,7 @@ const ticketBookingSchema = new mongoose.Schema({
   paymentId: { type: String, require: true, unique: true },
   isAttended: { type: Boolean, default: false },
   bookingDate: { type: Date, default: Date.now },
+  bookingStatus: { type: String, default: "booked" }
 });
 
 const TicketBook =
