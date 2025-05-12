@@ -112,7 +112,7 @@ export const loginUser = async (req: Request, res: Response) => {
       // validation for if email is exists
       const findUser = await findOne("User", { email: email }, sort);
       if (!findUser) {
-        return throwError(res, "Email not found", HTTP_STATUS_CODE.NOT_FOUND);
+        return throwError(res, "Invalid Credentials", HTTP_STATUS_CODE.NOT_FOUND);
       }
 
       // encrypt the password
@@ -124,7 +124,7 @@ export const loginUser = async (req: Request, res: Response) => {
       if (!isValidPassword) {
         return throwError(
           res,
-          "Invalid Password",
+          "Invalid Credentials",
           HTTP_STATUS_CODE.BAD_REQUEST
         );
       }
