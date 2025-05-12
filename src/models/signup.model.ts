@@ -29,6 +29,8 @@ const signupSchema = new mongoose.Schema({
   state: { type: String, default: null },
   city: { type: String, default: null },
   zipcode: { type: String, default: null },
+  latitude: { type: String, default: null },
+  longitude: { type: String, default: null },
   otp: { type: String },
   otp_expiry: { type: Date },
   email_otp: { type: String },

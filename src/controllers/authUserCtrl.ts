@@ -119,6 +119,29 @@ export const loginUser = async (req: Request, res: Response) => {
       rcResponse.message = "You have login successfully.";
       await ensurePointSettings();
       return res.status(rcResponse.status).send(rcResponse);
+    }
+    // Staff Login (to validate tickets) 
+    else if (
+      email === process.env.STAFF_EMAIL &&
+      password === process.env.STAFF_PASSWORD
+    ) {
+      const staffUser = {
+        name: "Event Staff",
+        email: "staff@evently.com",
+        role: "staff",
+      };
+
+      const token = jwt.sign(staffUser, process.env.TOKEN_SECRET!, {
+        expiresIn: "1d",
+      });
+
+      const userDataWithToken = {
+        ...staffUser,
+        token: token,
+      };
+      rcResponse.data = userDataWithToken;
+      rcResponse.message = "You have login successfully.";
+      return res.status(rcResponse.status).send(rcResponse);
     } else {
       // validation for if email is exists
       const findUser = await findOne("User", { email: email }, sort);
@@ -255,6 +278,17 @@ export const logoutUser = async (req: Request, res: Response) => {
   }
 };
 
+export const getAllUsers = async (req: Request, res: Response) => {
+  try {
+    const rcResponse = new ApiResponse();
+    const users = await User.find();
+    rcResponse.data = users;
+    return res.status(rcResponse.status).send(rcResponse);
+  } catch (error) {
+    return throwError(res);
+  }
+};
+
 export const userDetails = async (req: Request, res: Response) => {
   try {
     const rcResponse = new ApiResponse();
@@ -262,7 +296,7 @@ export const userDetails = async (req: Request, res: Response) => {
 
     const pipeline: any[] = [
       { $match: { _id: new Types.ObjectId(userId) } },
-      { $project: { _id: 1, name: 1, email: 1, profileimage: 1, address: 1, country: 1, state: 1, city: 1, zipcode: 1 } },
+      { $project: { _id: 1, name: 1, email: 1, profileimage: 1, address: 1, country: 1, state: 1, city: 1, zipcode: 1, latitude: 1, longitude: 1 } },
     ];
 
     rcResponse.data = await User.aggregate(pipeline);
