@@ -9,7 +9,8 @@ import {
   repeateCustomer,
   bookingsByTicketType,
   bookingsTimeTrends,
-  topLocations
+  topLocations,
+  topAttendedEvents
 } from "../controllers/dashboardCtrl";
 
 const dashboardRoutes = Router();
@@ -23,5 +24,6 @@ dashboardRoutes.get("/repeat-customers", validateAdminToken, repeateCustomer);
 dashboardRoutes.get("/bookings-by-ticket-type", validateAdminToken, bookingsByTicketType);
 dashboardRoutes.get("/bookings-time-trends", validateAdminToken, bookingsTimeTrends);
 dashboardRoutes.get("/top-locations", validateAdminToken, topLocations);
+dashboardRoutes.get("/top-attended-events", validateAdminToken, topAttendedEvents)
 
 export default dashboardRoutes;
