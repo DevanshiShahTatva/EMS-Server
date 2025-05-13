@@ -62,8 +62,8 @@ export const validateAdminToken = [
 
 
 // 4. Staff-Only Middleware (depends on validateToken)
-export const staffOnly = (req: Request, res: Response, next: NextFunction) => {
-  const log = appLogger.child({ middleware: 'adminOnly' });
+export const organizerOnly = (req: Request, res: Response, next: NextFunction) => {
+  const log = appLogger.child({ middleware: 'organizerOnly' });
 
   try {
     if (!(req as any).user) {
@@ -71,14 +71,14 @@ export const staffOnly = (req: Request, res: Response, next: NextFunction) => {
     }
 
     const user = (req as any).user;
-    if (user.role !== 'staff') {
-      return throwError(res, "Staff permissions required", HTTP_STATUS_CODE.FORBIDDEN); // 403
+    if (user.role !== 'organizer') {
+      return throwError(res, "Organizer permissions required", HTTP_STATUS_CODE.FORBIDDEN); // 403
     }
 
     next();
 
   } catch (error) {
-    log.error({ err: error }, "Staff verification failed");
+    log.error({ err: error }, "Organizer verification failed");
     return throwError(
       res,
       error instanceof Error ? error.message : "Authorization failed",
@@ -88,7 +88,7 @@ export const staffOnly = (req: Request, res: Response, next: NextFunction) => {
 };
 
 // 5. Combined Middleware (validateToken + adminOnly in one step)
-export const validateStaffToken = [
+export const validateOrganizerToken = [
   validateToken,
-  staffOnly
+  organizerOnly
 ];
