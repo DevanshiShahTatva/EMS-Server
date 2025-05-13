@@ -561,3 +561,88 @@ export const topLocations = async (req: Request, res: Response) => {
     return throwError(res);
   }
 };
+
+export const topAttendedEvents = async (req: Request, res: Response) => {
+  try {
+    const { limit } = req.query;
+    let parsedLimit: number | undefined = undefined;
+
+    if (limit) {
+      const asNumber = parseInt(limit as string);
+      if (!isNaN(asNumber) && asNumber > 0) {
+        parsedLimit = asNumber;
+      }
+    }
+
+   const pipeline: any[] = [
+      {
+        $group: {
+          _id: "$event",
+          totalAttendees: {
+            $sum: {
+              $cond: [{ $eq: ["$isAttended", true] }, 1, 0],
+            },
+          },
+          totalBookedSeats: { $sum: "$seats" },
+        },
+      },
+      {
+        $lookup: {
+          from: "events",
+          localField: "_id",
+          foreignField: "_id",
+          as: "eventDetails",
+        },
+      },
+      { $unwind: "$eventDetails" },
+      {
+        $addFields: {
+          attendanceRatioValue: {
+            $cond: [
+              { $eq: ["$totalBookedSeats", 0] },
+              0,
+              { $multiply: [{ $divide: ["$totalAttendees", "$totalBookedSeats"] }, 100] },
+            ],
+          },
+        },
+      },
+      {
+        $sort: {
+          attendanceRatioValue: -1,     // Sort by percentage first
+          totalBookedSeats: -1          // Then by booked seats
+        },
+      },
+      {
+        $addFields: {
+          attendanceRatio: {
+            $concat: [
+              { $toString: { $round: ["$attendanceRatioValue", 2] } },
+              "%"
+            ]
+          }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          eventId: "$eventDetails._id",
+          eventTitle: "$eventDetails.title",
+          totalAttendees: 1,
+          totalBookedSeats: 1,
+          attendanceRatio: 1
+        }
+      }
+    ];
+
+    if (parsedLimit) {
+      pipeline.push({ $limit: parsedLimit });
+    }
+
+    const stats = await TicketBook.aggregate(pipeline);
+    const rcResponse = new ApiResponse(stats);
+
+    res.status(200).json(rcResponse);
+  } catch (err) {
+    return throwError(res);
+  }
+}
