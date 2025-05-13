@@ -118,7 +118,8 @@ export const editFeedback = async(req:Request,res:Response)=>{
       return throwError(res,"Feedback not found",HTTP_STATUS_CODE.NOT_FOUND);
     }
     const updatedFeedback = {
-      ...req.body
+      ...req.body,
+      isEdited:true
     };
     const result = await updateOne("Feedback", { _id: feedbackId }, updatedFeedback);
     rcResponse.data = result;
