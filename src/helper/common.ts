@@ -5,6 +5,7 @@ import Event from "../models/event.model";
 import TicketBook from "../models/eventBooking.model";
 import jwt from "jsonwebtoken";
 import crypto from 'crypto';
+import Feedback from "../models/feedback.model";
 
 interface IModelMap {
   [key: string]: Model<Document>;
@@ -14,6 +15,7 @@ const models: IModelMap = {
   User,
   Event,
   TicketBook,
+  Feedback
 };
 
 export class ApiResponse<T = any> {

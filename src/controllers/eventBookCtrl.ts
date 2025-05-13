@@ -236,7 +236,7 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
     await event.save({ session });
     await TicketBook.findByIdAndUpdate(
       { _id: bookingId },
-      { bookingStatus: "cancelled" }
+      { bookingStatus: "cancelled", cancelledAt: new Date() }
     ).session(session);
 
     await session.commitTransaction();
