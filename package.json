@@ -16,7 +16,8 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "nodemon src/server.ts",
     "build": "npm install @types/node && tsc && cpx \"src/emails/**/*\" dist/emails",
-    "start": "node dist/server.js"
+    "start": "node dist/server.js",
+    "migrate": "ts-node src/helper/migrations/run-migration.ts"
   },
   "devDependencies": {
     "@types/body-parser": "~1.19.5",
