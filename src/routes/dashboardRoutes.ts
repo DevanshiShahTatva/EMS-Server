@@ -10,7 +10,8 @@ import {
   bookingsByTicketType,
   bookingsTimeTrends,
   topLocations,
-  getCancellationRate
+  getCancellationRate,
+  topAttendedEvents
 } from "../controllers/dashboardCtrl";
 
 const dashboardRoutes = Router();
@@ -25,5 +26,6 @@ dashboardRoutes.get("/bookings-by-ticket-type", validateAdminToken, bookingsByTi
 dashboardRoutes.get("/bookings-time-trends", validateAdminToken, bookingsTimeTrends);
 dashboardRoutes.get("/top-locations", validateAdminToken, topLocations);
 dashboardRoutes.get("/cancellation-ratio", validateAdminToken, getCancellationRate);
+dashboardRoutes.get("/top-attended-events", validateAdminToken, topAttendedEvents);
 
 export default dashboardRoutes;

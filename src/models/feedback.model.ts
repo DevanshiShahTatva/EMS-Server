@@ -8,8 +8,12 @@ const feedbackSchema = new mongoose.Schema(
     email: { type: String, required: true },
     rating: { type: Number, required: true },
     description: { type: String },
+    isEdited:{ type:Boolean, default:false },
   },
   { timestamps: true }
 )
 
-export const FeedbackModel = mongoose.model('Feedback', feedbackSchema)
+const Feedback =
+  mongoose.models.Feedback || mongoose.model('Feedback', feedbackSchema);
+
+export default Feedback;

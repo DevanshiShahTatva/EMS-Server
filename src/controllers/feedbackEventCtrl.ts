@@ -1,13 +1,17 @@
 import { Request, Response } from "express";
 import {
   ApiResponse,
+  deleteOne,
+  findOne,
   getUserIdFromToken,
   throwError,
+  updateOne,
 } from "../helper/common";
 import Event from "../models/event.model";
-import { FeedbackModel } from "../models/feedback.model";
+import Feedback  from "../models/feedback.model";
 import { Types } from "mongoose";
 import User from "../models/signup.model";
+import { HTTP_STATUS_CODE } from "../utilits/enum";
 export const feedbackEvent = async (req: Request, res: Response): Promise<void> => {
     try {
       const rcResponse = new ApiResponse();
@@ -31,7 +35,7 @@ export const feedbackEvent = async (req: Request, res: Response): Promise<void> 
       const user = await User.findById(userId);
       const name = user.name;
       const email = user.email;    
-      const feedback = await FeedbackModel.create({
+      const feedback = await Feedback.create({
         name,
         email,
         rating,
@@ -57,7 +61,7 @@ export const getFeedbackByUserId = async (req: Request, res: Response) => {
         if(!userId){
             res.status(rcResponse.status).json({message:'User not found.'})
         }
-        const feedbackResult = await FeedbackModel.find({userId:userId})
+        const feedbackResult = await Feedback.find({userId:userId})
         if (!feedbackResult || feedbackResult.length === 0) {
         return throwError(res, "No feedbacks found");
         }
@@ -77,7 +81,7 @@ export const getFeedbackByEventId = async (req: Request, res: Response) => {
             res.status(rcResponse.status).json({ message: 'Event not found.' })
             return
         }
-        const feedbackResult = await FeedbackModel.find({eventId:eventId})
+        const feedbackResult = await Feedback.find({eventId:eventId})
         if (!feedbackResult || feedbackResult.length === 0) {
         return throwError(res, "No feedbacks found");
         }
@@ -87,3 +91,41 @@ export const getFeedbackByEventId = async (req: Request, res: Response) => {
         return throwError(res);
     }
 };
+
+export const deleteFeedback = async (req:Request,res:Response)=>{
+  try{
+    const rcResponse = new ApiResponse();
+    const feedbackId = req.params.id;
+    let sort = {created:-1};
+    const feedback = await findOne("Feedback",{_id:feedbackId},sort);
+    if(!feedback){
+      return throwError(res,"Feedback not found",HTTP_STATUS_CODE.NOT_FOUND);
+    }
+    rcResponse.data = await deleteOne("Feedback",{_id:feedbackId});
+    rcResponse.message = "Feedback deleted Successfully";
+    return res.status(rcResponse.status).send(rcResponse);
+  }catch(error){
+    return throwError(res);
+  }
+}
+
+export const editFeedback = async(req:Request,res:Response)=>{
+  try{
+    const rcResponse = new ApiResponse();
+    const feedbackId = req.params.id;
+    const findEvent = await findOne("Feedback",{_id:feedbackId});
+    if(!findEvent){
+      return throwError(res,"Feedback not found",HTTP_STATUS_CODE.NOT_FOUND);
+    }
+    const updatedFeedback = {
+      ...req.body,
+      isEdited:true
+    };
+    const result = await updateOne("Feedback", { _id: feedbackId }, updatedFeedback);
+    rcResponse.data = result;
+    rcResponse.message = "Feedback updated successfully.";
+    return res.status(rcResponse.status).send(rcResponse);
+  } catch (error){
+    return throwError(res);
+  }
+}
