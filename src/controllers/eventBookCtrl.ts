@@ -16,6 +16,8 @@ import {
 import Stripe from "stripe";
 import Event from "../models/event.model";
 import { appLogger } from "../helper/logger";
+import User from "../models/signup.model";
+import PointTransaction from "../models/pointTransaction";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-08-16" as any,
@@ -274,7 +276,7 @@ export const validateTicket = async (req: Request, res: Response) => {
       });
     }
 
-    const isValidTicket = await TicketBook.findById(ticketId).populate("event");
+    const isValidTicket = await TicketBook.findById(ticketId).populate("event").populate("user");
     if (!isValidTicket) {
       return throwError(res, 'Ticket not found', HTTP_STATUS_CODE.NOT_FOUND);
     }
@@ -297,6 +299,17 @@ export const validateTicket = async (req: Request, res: Response) => {
     isValidTicket.isAttended = true;
     await isValidTicket.save();
 
+    const userId = isValidTicket.user._id;
+    const points = isValidTicket.event.numberOfPoint ?? 0;
+    await User.updateOne({ _id: userId },
+      { $inc: { current_points: points } }
+    );
+    await PointTransaction.create({
+      userId: userId,
+      points: points,
+      activityType: 'EARN',
+      description: `Attended ${isValidTicket.event.title} ticket`,
+    });
     res.status(HTTP_STATUS_CODE.OK).json({
       success: true,
       data: "Validate",

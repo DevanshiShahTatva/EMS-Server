@@ -1,7 +1,8 @@
 import { Request, Response } from 'express';
 import PointSettings from "../models/pointSetting.model";
 import { HTTP_STATUS_CODE } from "../utilits/enum";
-import { throwError } from "../helper/common";
+import { getUserIdFromToken, throwError } from "../helper/common";
+import PointTransaction from '../models/pointTransaction';
 
 export const getPointSettings = async (req: Request, res: Response) => {
   try {
@@ -28,5 +29,21 @@ export const updatePointSettings = async (req: Request, res: Response) => {
     res.json({ success: true, message: "Conversion rate updated", data: settings.conversionRate });
   } catch (error) {
     return throwError(error, 'Failed to update conversion rate', HTTP_STATUS_CODE.BAD_REQUEST);
+  }
+};
+
+export const getPointHistory = async (req: Request, res: Response) => {
+  try {
+    const userId = getUserIdFromToken(req);
+    const transactions = await PointTransaction.find({ userId })
+      .select('activityType description points createdAt')
+      .sort({ createdAt: -1 });
+
+    res.status(HTTP_STATUS_CODE.OK).json({
+      success: true,
+      data: transactions
+    });
+  } catch (error) {
+    return throwError(error, 'Failed to retrieve transactions', HTTP_STATUS_CODE.BAD_REQUEST);
   }
 };

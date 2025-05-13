@@ -6,6 +6,6 @@ const PointSettingSchema = new Schema({
   timestamps: true,
 });
 
-const PointSettingModal = mongoose.models.PointSettingModal || mongoose.model('PointSetting', PointSettingSchema);
+const PointSetting = mongoose.models.PointSettingModal || mongoose.model('PointSetting', PointSettingSchema);
 
-export default PointSettingModal;
+export default PointSetting;
