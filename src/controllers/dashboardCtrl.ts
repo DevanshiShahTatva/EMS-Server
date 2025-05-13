@@ -11,34 +11,31 @@ import {
 } from "../helper/dateHelper";
 import { HTTP_STATUS_CODE, MONTH_NAMES } from "../utilits/enum";
 import User from "../models/signup.model";
+import mongoose from "mongoose";
 
 export const dashboardOverview = async (req: Request, res: Response) => {
   try {
     const rcResponse = new ApiResponse();
-     // Execute all queries in parallel
-     const [
-      totalUsers,
-      totalRevenueResult,
-      totalEvents,
-      totalLocationsResult
-    ] = await Promise.all([
-      // Total Users
-      User.countDocuments(),
-      
-      // Total Revenue
-      TicketBook.aggregate([
-        { $group: { _id: null, total: { $sum: "$totalAmount" } } }
-      ]),
-      
-      // Total Events
-      Event.countDocuments(),
-      
-      // Unique Locations (group by lat/lng)
-      Event.aggregate([
-        { $group: { _id: { lat: "$location.lat", lng: "$location.lng" } } },
-        { $count: "totalLocations" }
-      ])
-    ]);
+    // Execute all queries in parallel
+    const [totalUsers, totalRevenueResult, totalEvents, totalLocationsResult] =
+      await Promise.all([
+        // Total Users
+        User.countDocuments(),
+
+        // Total Revenue
+        TicketBook.aggregate([
+          { $group: { _id: null, total: { $sum: "$totalAmount" } } },
+        ]),
+
+        // Total Events
+        Event.countDocuments(),
+
+        // Unique Locations (group by lat/lng)
+        Event.aggregate([
+          { $group: { _id: { lat: "$location.lat", lng: "$location.lng" } } },
+          { $count: "totalLocations" },
+        ]),
+      ]);
 
     // Extract values from aggregation results
     const totalRevenue = totalRevenueResult[0]?.total || 0;
@@ -48,8 +45,8 @@ export const dashboardOverview = async (req: Request, res: Response) => {
       totalUsers,
       totalRevenue,
       totalEvents,
-      totalLocations
-    }
+      totalLocations,
+    };
     res.status(rcResponse.status).send(rcResponse);
   } catch (err) {
     return throwError(res);
@@ -106,7 +103,7 @@ export const totalRevenue = async (
 
     // Get date range - modified for "overall" case
     let startDate, endDate, groupFormat, currentReference;
-    
+
     if (period === "overall") {
       // For overall, we'll get all available years
       startDate = new Date(0); // Very old date
@@ -142,9 +139,10 @@ export const totalRevenue = async (
     const rawData = await TicketBook.aggregate(pipeline);
 
     // For overall, we don't need to fill empty intervals between years
-    const filledData = period === "overall" 
-      ? rawData 
-      : fillEmptyIntervals(rawData, period, startDate, endDate);
+    const filledData =
+      period === "overall"
+        ? rawData
+        : fillEmptyIntervals(rawData, period, startDate, endDate);
 
     const response = {
       period,
@@ -152,7 +150,8 @@ export const totalRevenue = async (
       startDate: startDate.toISOString(),
       endDate: endDate.toISOString(),
       data: filledData,
-      navigation: period === "overall" ? null : getNavigation(period, currentReference),
+      navigation:
+        period === "overall" ? null : getNavigation(period, currentReference),
     };
 
     rcResponse.data = response;
@@ -172,7 +171,7 @@ export const totalBookingValue = async (
     const reference = req.query.reference;
 
     // Validate period parameters (skip validation for 'overall')
-    if (period !== 'overall' && validatePeriod(period, reference)) {
+    if (period !== "overall" && validatePeriod(period, reference)) {
       return throwError(
         res,
         `Invalid ${period} format`,
@@ -182,11 +181,11 @@ export const totalBookingValue = async (
 
     // Get date range - modified for 'overall' case
     let startDate, endDate, currentReference;
-    
-    if (period === 'overall') {
+
+    if (period === "overall") {
       startDate = new Date(0); // Unix epoch
       endDate = new Date(); // Current date
-      currentReference = 'overall';
+      currentReference = "overall";
     } else {
       ({ startDate, endDate, currentReference } = getDateRange(
         period,
@@ -244,7 +243,8 @@ export const totalBookingValue = async (
         totalValue: item.totalValue,
         bookings: item.totalBookings,
       })),
-      navigation: period === 'overall' ? null : getNavigation(period, currentReference),
+      navigation:
+        period === "overall" ? null : getNavigation(period, currentReference),
     };
 
     rcResponse.data = response;
@@ -558,6 +558,122 @@ export const topLocations = async (req: Request, res: Response) => {
     rcResponse.data = await Event.aggregate(pipeline);
     res.status(rcResponse.status).send(rcResponse);
   } catch (err) {
+    return throwError(res);
+  }
+};
+
+export const getCancellationRate = async (req: Request, res: Response) => {
+  try {
+    const { eventId, limit } = req.query;
+
+    const rcResponse = new ApiResponse();
+
+    // Define the aggregation pipeline
+    const pipeline: any[] = [
+      {
+        // Group by {event, user} and calculate if the user has any active bookings
+        $group: {
+          _id: { event: "$event", user: "$user" },
+          hasActive: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ["$bookingStatus", "booked"] },
+                    { $eq: ["$cancelledAt", null] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+        },
+      },
+      {
+        // Project fields to determine if the user has no active bookings
+        $project: {
+          event: "$_id.event",
+          isCancelled: { $eq: ["$hasActive", 0] },
+        },
+      },
+      {
+        // Group by event and calculate totals
+        $group: {
+          _id: "$event",
+          totalBookedUsers: { $sum: 1 },
+          cancelledUsers: {
+            $sum: {
+              $cond: ["$isCancelled", 1, 0],
+            },
+          },
+        },
+      },
+      {
+        $lookup: {
+          from: "events",
+          localField: "_id",
+          foreignField: "_id",
+          as: "event"
+        }
+      },
+      { $unwind: { path: "$event", preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          _id: 0,
+          eventId: "$_id",
+          event: {
+            title: "$event.title",
+            startDate: "$event.startDateTime",
+            category: "$event.category",
+            location: "$event.location.address"
+          },
+          totalBookedUsers: 1,
+          cancelledUsers: 1,
+          cancellationRate: {
+            $round: [
+              {
+                $multiply: [
+                  { $divide: ["$cancelledUsers", "$totalBookedUsers"] },
+                  100,
+                ],
+              },
+              2,
+            ],
+          },
+        },
+      },
+      { $sort: { cancellationRate: -1 } },
+    ];
+
+    if (limit) {
+      pipeline.push({ $limit: parseInt(limit as string) });
+    };
+
+    // Run the aggregation
+    const allData = await TicketBook.aggregate(pipeline);
+
+    // Handle single event case
+    if (eventId) {
+      // Remove limit/sort for single event lookup
+      const fullPipeline = pipeline.slice(0, -2); // Remove sort and limit
+      const eventData = await TicketBook.aggregate([
+        ...fullPipeline,
+        { $match: { event: new mongoose.Types.ObjectId(eventId as string) } },
+      ]);
+
+      rcResponse.data = eventData[0] || {
+        event: eventId,
+        totalBookedUsers: 0,
+        cancelledUsers: 0,
+        cancellationRate: 0.0,
+      };
+    } else {
+      rcResponse.data = allData;
+    }
+
+    res.status(rcResponse.status).send(rcResponse);
+  } catch (error) {
     return throwError(res);
   }
 };
