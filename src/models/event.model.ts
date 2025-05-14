@@ -1,8 +1,9 @@
 import mongoose, { Schema, Document } from "mongoose";
-import { CATEGORY_ENUM } from "../utilits/enum";
+import { ITicketCategory } from "./ticketCategory.model";
+import { ITicketType } from "./ticketType.model";
 
 interface ITicket {
-  type: string;
+  type: ITicketType;
   price?: number;
   totalSeats: number;
   totalBookedSeats: number;
@@ -20,7 +21,7 @@ interface IEvent extends Document {
   startDateTime: Date;
   endDateTime: Date;
   duration: string;
-  category: string;
+  category: ITicketCategory;
   tickets: ITicket[];
   images: string[];
   createdAt: Date;
@@ -32,8 +33,9 @@ interface IEvent extends Document {
 
 const TicketSchema = new Schema<ITicket>({
   type: {
-    type: String,
     required: true,
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "TicketType",
   },
   price: {
     type: Number,
@@ -97,8 +99,8 @@ const EventSchema = new Schema<IEvent>(
       required: true,
     },
     category: {
-      type: String,
-      enum: CATEGORY_ENUM,
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "TicketCategory",
       required: true,
     },
     tickets: {
