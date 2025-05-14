@@ -9,13 +9,7 @@ const feedbackSchema = new mongoose.Schema(
     rating: { type: Number, required: true },
     description: { type: String },
     isEdited:{ type:Boolean, default:false },
-    profileimage: {
-    type: {
-      imageId: String,
-      url: String,
-    },
-    default: null
-  },
+    profileimage: { type: String} ,
   },
   { timestamps: true }
 )

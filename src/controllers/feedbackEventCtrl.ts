@@ -35,7 +35,7 @@ export const feedbackEvent = async (req: Request, res: Response): Promise<void> 
       const user = await User.findById(userId);
       const name = user.name;
       const email = user.email;    
-      const image = user.profileimage;
+      const profileimage = user.profileimage.url;
       const feedback = await Feedback.create({
         name,
         email,
@@ -43,7 +43,7 @@ export const feedbackEvent = async (req: Request, res: Response): Promise<void> 
         description,
         eventId,
         userId,
-        image
+        profileimage
       })
       rcResponse.data = {
         success:"success",
@@ -88,6 +88,7 @@ export const getFeedbackByEventId = async (req: Request, res: Response) => {
         return throwError(res, "No feedbacks found");
         }
         rcResponse.data = feedbackResult;
+        console.log("feedbacks",feedbackResult);
         return res.status(rcResponse.status).send(rcResponse);
     } catch (error) {
         return throwError(res);
