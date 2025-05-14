@@ -2,7 +2,6 @@ import { Request, Response } from "express";
 import {
   ApiResponse,
   create,
-  find,
   findOne,
   updateOne,
   throwError,
@@ -14,6 +13,7 @@ import { HTTP_STATUS_CODE } from "../utilits/enum";
 import Event from "../models/event.model";
 import mongoose, { Types } from "mongoose";
 import TicketBook from "../models/eventBooking.model";
+import PointSetting from "../models/pointSetting.model";
 import { appLogger } from "../helper/logger";
 
 export const postEvent = async (req: Request, res: Response) => {
@@ -231,8 +231,15 @@ export const getEventById = async (req: Request, res: Response) => {
     if (!eventResult || eventResult.length === 0) {
       return throwError(res, "Event not found");
     }
-
+    
     rcResponse.data = eventResult[0];
+
+    const user = await mongoose.model("User").findById(userId);
+    if(user) {
+      const settings = await PointSetting.findOne().sort({ updatedAt: -1 });
+      rcResponse.data.userPoints = user.current_points;
+      rcResponse.data.conversionRate = settings?.conversionRate ?? null;
+    }
     return res.status(rcResponse.status).send(rcResponse);
   } catch (error) {
     return throwError(res);

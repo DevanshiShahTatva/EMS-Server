@@ -29,6 +29,7 @@ interface IEvent extends Document {
   likes: Array<mongoose.Schema.Types.ObjectId>;
   likesCount: Number;
   isLiked: Boolean;
+  numberOfPoint: number;
 }
 
 const TicketSchema = new Schema<ITicket>({
@@ -134,7 +135,8 @@ const EventSchema = new Schema<IEvent>(
       default: []
     },
     isLiked: { type: Boolean, default: false },
-    likesCount: { type: Number, default: 0 }
+    likesCount: { type: Number, default: 0 },
+    numberOfPoint: { type: Number, default: 0 }
   },
   {
     timestamps: true,
