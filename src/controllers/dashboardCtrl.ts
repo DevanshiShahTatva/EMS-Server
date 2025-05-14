@@ -68,11 +68,12 @@ export const topLikedEvents = async (req: Request, res: Response) => {
       { $addFields: { likesCount: { $size: { $ifNull: ["$likes", []] } } } },
     ];
 
+    pipeline.push({ $sort: { likesCount: -1 } });
+
     if (limit) {
       pipeline.push({ $limit: limit });
     }
 
-    pipeline.push({ $sort: { likesCount: -1 } });
     pipeline.push({ $project: { title: 1, likesCount: 1, category: 1 } });
 
     const events = await Event.aggregate(pipeline);
