@@ -37,6 +37,11 @@ const signupSchema = new mongoose.Schema({
   otp_expiry: { type: Date },
   email_otp: { type: String },
   email_otp_expiry: { type: Date },
+  role: {
+    type: String,
+    enum: ["user", "organizer"],
+    default: "user",
+  }
 });
 
 signupSchema.set("toJSON", {

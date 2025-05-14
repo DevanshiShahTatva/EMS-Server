@@ -121,29 +121,6 @@ export const loginUser = async (req: Request, res: Response) => {
       rcResponse.message = "You have login successfully.";
       await ensurePointSettings();
       return res.status(rcResponse.status).send(rcResponse);
-    }
-    // Staff Login (to validate tickets) 
-    else if (
-      email === process.env.STAFF_EMAIL &&
-      password === process.env.STAFF_PASSWORD
-    ) {
-      const staffUser = {
-        name: "Event Staff",
-        email: "staff@evently.com",
-        role: "staff",
-      };
-
-      const token = jwt.sign(staffUser, process.env.TOKEN_SECRET!, {
-        expiresIn: "1d",
-      });
-
-      const userDataWithToken = {
-        ...staffUser,
-        token: token,
-      };
-      rcResponse.data = userDataWithToken;
-      rcResponse.message = "You have login successfully.";
-      return res.status(rcResponse.status).send(rcResponse);
     } else {
       // validation for if email is exists
       const findUser = await findOne("User", { email: email }, sort);
@@ -169,7 +146,7 @@ export const loginUser = async (req: Request, res: Response) => {
         _id: findUser._id,
         name: findUser.name,
         email: findUser.email,
-        role: "user",
+        role: findUser.role || "user",
       };
 
       const token = jwt.sign(tokenUser, process.env.TOKEN_SECRET!, {
