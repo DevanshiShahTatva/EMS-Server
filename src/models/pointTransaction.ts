@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 
 const PointTransactionSchema = new mongoose.Schema({
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, unique: true },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   activityType: { type: String, enum: ['EARN', 'REDEEM'], required: true },
   description: { type: String, required: true },
   points: { type: Number, required: true },

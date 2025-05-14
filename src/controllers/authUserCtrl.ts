@@ -69,6 +69,7 @@ export const registerUser = async (req: Request, res: Response) => {
     const newBody = {
       ...body,
       current_points: 0,
+      current_badge: "Bronze",
       password: hashPassword,
     };
 
@@ -297,7 +298,7 @@ export const userDetails = async (req: Request, res: Response) => {
 
     const pipeline: any[] = [
       { $match: { _id: new Types.ObjectId(userId) } },
-      { $project: { _id: 1, name: 1, email: 1, profileimage: 1, current_points: 1, address: 1, country: 1, state: 1, city: 1, zipcode: 1, latitude: 1, longitude: 1 } },
+      { $project: { _id: 1, name: 1, email: 1, profileimage: 1, current_points: 1, total_earned_points: 1, current_badge: 1, address: 1, country: 1, state: 1, city: 1, zipcode: 1, latitude: 1, longitude: 1 } },
     ];
 
     rcResponse.data = await User.aggregate(pipeline);

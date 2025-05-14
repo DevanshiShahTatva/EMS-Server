@@ -30,7 +30,7 @@ export const postTicketBook = async (req: Request, res: any) => {
     session.startTransaction();
 
     const rcResponse = new ApiResponse();
-    const { eventId, ticketId, seats, totalAmount, paymentId } = req.body;
+    const { eventId, ticketId, seats, totalAmount, paymentId, usedPoints } = req.body;
 
     // find user from token
     const user = getUserIdFromToken(req);
@@ -103,6 +103,21 @@ export const postTicketBook = async (req: Request, res: any) => {
       { session }
     );
 
+    if(usedPoints) {
+      const userId = await getUserIdFromToken(req);
+
+      await User.findById(userId).then(user => {
+        const newPoints = Math.max(0, user.current_points - usedPoints);
+        return User.findByIdAndUpdate(userId, { current_points: newPoints });
+      });
+
+      await PointTransaction.create({
+        userId: userId,
+        points: usedPoints,
+        activityType: 'REDEEM',
+        description: `Used in ${event.title} event`,
+      });
+    }
     await session.commitTransaction();
     session.endSession();
 
@@ -265,8 +280,9 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
 
 export const validateTicket = async (req: Request, res: Response) => {
    const log = appLogger.child({ method: 'validateTicket', body: req.body });
-
-  try {
+   const session = await mongoose.startSession();
+   session.startTransaction();
+   try {
     const { ticketId } = req.body
 
     if (!ticketId) {
@@ -276,46 +292,91 @@ export const validateTicket = async (req: Request, res: Response) => {
       });
     }
 
-    const isValidTicket = await TicketBook.findById(ticketId).populate("event").populate("user");
-    if (!isValidTicket) {
+    const ticket = await TicketBook.findById(ticketId)
+    .populate("event")
+    .populate("user")
+    .session(session);
+
+    if (!ticket) {
+      await session.abortTransaction();
+      session.endSession();
       return throwError(res, 'Ticket not found', HTTP_STATUS_CODE.NOT_FOUND);
     }
 
      // Check if already marked as attended
-    if (isValidTicket.isAttended) {
+    if (ticket.isAttended) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({
         success: false,
         message: "This ticket has already been used to attend the event.",
       });
     }
-
     // Ensure event is populated and not expired
     const currentTime = new Date();
-    if (!isValidTicket.event || new Date(isValidTicket.event.endDateTime) < currentTime) {
+    if (!ticket.event || new Date(ticket.event.endDateTime) < currentTime) {
+      await session.abortTransaction();
+      session.endSession();
       return res.status(400).json({ success: false, message: "Ticket is no longer valid as the event has already ended" });
     }
 
     // Mark the ticket as validated
-    isValidTicket.isAttended = true;
-    await isValidTicket.save();
+    ticket.isAttended = true;
+    await ticket.save();
 
-    const userId = isValidTicket.user._id;
-    const points = isValidTicket.event.numberOfPoint ?? 0;
-    await User.updateOne({ _id: userId },
-      { $inc: { current_points: points } }
+    const userId = ticket.user._id;
+    const pointsToAdd = ticket.event.numberOfPoint ?? 0;
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      {
+        $inc: {
+          current_points: pointsToAdd,
+          total_earned_points: pointsToAdd
+        }
+      },
+      { new: true, session }
     );
-    await PointTransaction.create({
+    const attendedCount = await TicketBook.countDocuments({
+      user: userId,
+      isAttended: true,
+    }).session(session);
+
+    let newBadge = 'Bronze';
+    if (updatedUser.total_earned_points >= 1000 || attendedCount >= 10) {
+      newBadge = 'Gold';
+    } else if (updatedUser.total_earned_points >= 500) {
+      newBadge = 'Silver';
+    }
+
+    if (updatedUser.current_badge !== newBadge) {
+      await User.updateOne(
+        { _id: userId }, 
+        { current_badge: newBadge },
+        { session }
+        );
+    }
+
+    await PointTransaction.create([{
       userId: userId,
-      points: points,
+      points: pointsToAdd,
       activityType: 'EARN',
-      description: `Attended ${isValidTicket.event.title} ticket`,
-    });
+      description: `Attended ${ticket.event.title} event`,
+    }],
+    { session }
+    );
+
+    await session.commitTransaction();
+    session.endSession();
+
     res.status(HTTP_STATUS_CODE.OK).json({
       success: true,
       data: "Validate",
       message: 'Ticket validated successfully'
     });
   } catch (error) {
+    await session.abortTransaction();
+    session.endSession();
     log.error({ err: error }, 'Error validating your tickets');
     return throwError(res, 'Failed to validate ticket', HTTP_STATUS_CODE.BAD_REQUEST);
   }
