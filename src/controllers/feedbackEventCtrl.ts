@@ -35,13 +35,15 @@ export const feedbackEvent = async (req: Request, res: Response): Promise<void> 
       const user = await User.findById(userId);
       const name = user.name;
       const email = user.email;    
+      const image = user.profileimage;
       const feedback = await Feedback.create({
         name,
         email,
         rating,
         description,
         eventId,
-        userId
+        userId,
+        image
       })
       rcResponse.data = {
         success:"success",
