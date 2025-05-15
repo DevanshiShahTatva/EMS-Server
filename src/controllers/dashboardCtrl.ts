@@ -221,8 +221,24 @@ export const totalBookingValue = async (
         },
       },
       {
+        $lookup: {
+          from: "ticketcategories", // Match your collection name exactly
+          localField: "_id",
+          foreignField: "_id",
+          as: "categoryDetails",
+        },
+      },
+      { $unwind: { path: "$categoryDetails", preserveNullAndEmptyArrays: true } },
+      {
         $project: {
-          category: "$_id",
+          category: {
+            $cond: [
+              { $ifNull: ["$categoryDetails.name", false] },
+              "$categoryDetails.name",
+              "Uncategorized"
+            ]
+          },
+          categoryId: { $toString: "$_id" },
           totalValue: 1,
           totalBookings: 1,
           _id: 0,
@@ -233,24 +249,24 @@ export const totalBookingValue = async (
 
     const data = await TicketBook.aggregate(pipeline);
 
-    // Format response
     const response = {
       period,
       currentReference,
       startDate: startDate.toISOString(),
       endDate: endDate.toISOString(),
       data: data.map((item) => ({
-        category: item.category || "Uncategorized",
+        category: item.category,
+        // categoryId: item.categoryId,
         totalValue: item.totalValue,
         bookings: item.totalBookings,
       })),
-      navigation:
-        period === "overall" ? null : getNavigation(period, currentReference),
+      navigation: period === "overall" ? null : getNavigation(period, currentReference),
     };
 
     rcResponse.data = response;
     res.status(rcResponse.status).send(rcResponse);
   } catch (err) {
+    console.error("Error in totalBookingValue:", err);
     return throwError(res);
   }
 };
