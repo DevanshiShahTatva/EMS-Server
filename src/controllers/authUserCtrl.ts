@@ -19,12 +19,22 @@ import {
   sendOtpForEmailChange,
 } from "../helper/nodemailer";
 import User from "../models/signup.model";
+import PointSettings from "../models/pointSetting.model";
 import mongoose, { Types } from "mongoose";
 import { deleteFromCloudinary, saveFileToCloud } from "../helper/cloudniry";
 import crypto from 'crypto';
 import { appLogger } from "../helper/logger";
 
 dotenv.config();
+
+const ensurePointSettings = async () => {
+  const exists = await PointSettings.exists({});
+  if (!exists) {
+    await PointSettings.create({
+      conversionRate: 10,
+    });
+  }
+};
 
 export const registerUser = async (req: Request, res: Response) => {
   try {
@@ -58,6 +68,8 @@ export const registerUser = async (req: Request, res: Response) => {
 
     const newBody = {
       ...body,
+      current_points: 0,
+      current_badge: "Bronze",
       password: hashPassword,
     };
 
@@ -107,6 +119,7 @@ export const loginUser = async (req: Request, res: Response) => {
       };
       rcResponse.data = userDataWithToken;
       rcResponse.message = "You have login successfully.";
+      await ensurePointSettings();
       return res.status(rcResponse.status).send(rcResponse);
     } else {
       // validation for if email is exists
@@ -262,7 +275,7 @@ export const userDetails = async (req: Request, res: Response) => {
 
     const pipeline: any[] = [
       { $match: { _id: new Types.ObjectId(userId) } },
-      { $project: { _id: 1, name: 1, email: 1, profileimage: 1, address: 1, country: 1, state: 1, city: 1, zipcode: 1, latitude: 1, longitude: 1 } },
+      { $project: { _id: 1, name: 1, email: 1, profileimage: 1, current_points: 1, total_earned_points: 1, current_badge: 1, address: 1, country: 1, state: 1, city: 1, zipcode: 1, latitude: 1, longitude: 1 } },
     ];
 
     rcResponse.data = await User.aggregate(pipeline);
