@@ -2,8 +2,6 @@ import mongoose from "mongoose";
 import { Request, Response } from "express";
 import {
   ApiResponse,
-  find,
-  findOne,
   getUserIdFromToken,
   throwError,
 } from "../helper/common";
@@ -44,8 +42,13 @@ export const postTicketBook = async (req: Request, res: any) => {
       );
     }
 
-    // validate event and ticket
-    const event = await findOne("Event", { _id: eventId });
+    // validate event and ticket - populate the ticket type
+    const event = await mongoose.model("Event").findOne({ _id: eventId })
+      .populate({
+        path: 'tickets.type',
+        select: 'name description'
+      });
+
     if (!event) {
       return throwError(res, "Event not found", HTTP_STATUS_CODE.NOT_FOUND);
     }
@@ -53,6 +56,7 @@ export const postTicketBook = async (req: Request, res: any) => {
     const selectedTicket = event.tickets.find(
       (ticket: any) => ticket._id.toString() === ticketId
     );
+    
     if (!selectedTicket) {
       return throwError(
         res,
@@ -130,11 +134,13 @@ export const postTicketBook = async (req: Request, res: any) => {
           .select("email name");
 
         if (userData) {
+          // Get the populated ticket type name
+          const ticketTypeName = selectedTicket.type?.name || ""; 
           await sendBookingConfirmationEmail(
             userData.email,
             userData.name,
             event.title,
-            selectedTicket.type,
+            ticketTypeName,
             seats,
             totalAmount,
             booking._id
@@ -145,7 +151,7 @@ export const postTicketBook = async (req: Request, res: any) => {
       }
     }
 
-    rcResponse.data = booking; // Return the booking in the response
+    rcResponse.data = booking;
     rcResponse.message = "Ticket booked successfully.";
     return res.status(rcResponse.status).send(rcResponse);
   } catch (error: any) {
@@ -166,19 +172,23 @@ export const postTicketBook = async (req: Request, res: any) => {
 export const getTicketBooks = async (req: Request, res: any) => {
   try {
     const rcResponse = new ApiResponse();
-    let sort = { created: -1 };
+    const sort: Record<string, 1 | -1> = { created: -1 };
 
     // find user from token
     const userId = getUserIdFromToken(req);
 
-    const populates = ["user", "event"];
+    rcResponse.data = await TicketBook.find({ user: userId })
+      .sort(sort)
+      .populate('user')
+      .populate({
+        path: 'event',
+        populate: [
+          { path: 'category' },
+          { path: 'tickets.type' }
+        ]
+      })
+      .exec();
 
-    rcResponse.data = await find(
-      "TicketBook",
-      { user: userId },
-      sort,
-      populates
-    );
     return res.status(rcResponse.status).send(rcResponse);
   } catch (error) {
     return throwError(res);
