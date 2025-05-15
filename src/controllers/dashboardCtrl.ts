@@ -763,3 +763,33 @@ export const topAttendedEvents = async (req: Request, res: Response) => {
     return throwError(res);
   }
 }
+
+export const userBadgeInfo = async (req: Request, res: Response) => {
+  try {
+    const badgeTypes = ['Bronze', 'Silver', 'Gold'];
+    const counts = await User.aggregate([
+      {
+        $group: {
+          _id: "$current_badge",
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+
+    const countMap = counts.reduce((acc, item) => {
+      acc[item._id] = item.count;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const finalResult = badgeTypes.map(badge => ({
+      badge,
+      count: countMap[badge] ?? 0
+    }));
+
+    const rcResponse = new ApiResponse();
+    rcResponse.data = finalResult;
+    res.status(200).json(rcResponse);
+  } catch (err) {
+    return throwError(err);
+  }
+}
