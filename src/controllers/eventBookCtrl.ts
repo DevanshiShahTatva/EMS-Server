@@ -353,9 +353,9 @@ export const validateTicket = async (req: Request, res: Response) => {
     }).session(session);
 
     let newBadge = 'Bronze';
-    if (updatedUser.total_earned_points >= 1000 || attendedCount >= 10) {
+    if (updatedUser.total_earned_points >= 2000 || attendedCount >= 10) {
       newBadge = 'Gold';
-    } else if (updatedUser.total_earned_points >= 500) {
+    } else if (updatedUser.total_earned_points >= 1000) {
       newBadge = 'Silver';
     }
 
