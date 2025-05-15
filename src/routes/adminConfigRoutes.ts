@@ -6,6 +6,6 @@ const router = Router();
 
 router.put("/cancel-charge", validateAdminToken, putCancelCharge);
 router.get("/cancel-charge", validateAdminToken, getCancelCharge);
-router.get("/cancel-charge-value", validateToken, getCancelCharge);
+router.get("/cancel-charge", validateToken, getCancelCharge);
 
 export default router;

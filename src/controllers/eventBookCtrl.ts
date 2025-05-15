@@ -65,7 +65,10 @@ export const postTicketBook = async (req: Request, res: any) => {
       );
     }
 
-    if (selectedTicket.totalBookedSeats + seats > selectedTicket.totalSeats) {
+    if (
+      selectedTicket.totalBookedSeats + Number(seats) >
+      selectedTicket.totalSeats
+    ) {
       return throwError(
         res,
         "Not enough available seats",
@@ -257,7 +260,8 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
 
     const getCharges = await CancelCharge.findOne();
 
-    const refundAmount = (getCharges.charge / 100) * booking.totalAmount;
+    const charge = (getCharges.charge / 100) * booking.totalAmount;
+    const refundAmount = booking.totalAmount - charge;
 
     // 7. No refund if pay amount is 0
     if (booking.totalAmount === 0 || refundAmount < 20) {
@@ -287,7 +291,7 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
         booking.user.name,
         booking.event.title,
         booking.ticket,
-        booking.totalAmount
+        String(refund.amount)
       );
     }
 
