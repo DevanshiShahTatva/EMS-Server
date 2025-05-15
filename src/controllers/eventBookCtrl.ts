@@ -166,19 +166,23 @@ export const postTicketBook = async (req: Request, res: any) => {
 export const getTicketBooks = async (req: Request, res: any) => {
   try {
     const rcResponse = new ApiResponse();
-    let sort = { created: -1 };
+    const sort: Record<string, 1 | -1> = { created: -1 };
 
     // find user from token
     const userId = getUserIdFromToken(req);
 
-    const populates = ["user", "event"];
+    rcResponse.data = await TicketBook.find({ user: userId })
+      .sort(sort)
+      .populate('user')
+      .populate({
+        path: 'event',
+        populate: [
+          { path: 'category' },
+          { path: 'tickets.type' }
+        ]
+      })
+      .exec();
 
-    rcResponse.data = await find(
-      "TicketBook",
-      { user: userId },
-      sort,
-      populates
-    );
     return res.status(rcResponse.status).send(rcResponse);
   } catch (error) {
     return throwError(res);
