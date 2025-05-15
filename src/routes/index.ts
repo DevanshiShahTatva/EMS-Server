@@ -10,6 +10,7 @@ import feedbackRoutes from "./feedbackRoutes";
 import ticketTypeRoutes from "./ticketTypeRoutes";
 import pointSettingRoutes from "./pointSettingRoutes";
 import ticketCategoryRoutes from "./ticketCategoryRoutes";
+import adminConfigRoutes from "./adminConfigRoutes";
 
 const router = Router();
 router.use(authRoutes);
@@ -23,5 +24,6 @@ router.use("/feedbacks", feedbackRoutes);
 router.use('/ticket-types', ticketTypeRoutes);
 router.use('/point-setting', pointSettingRoutes);
 router.use('/ticket-categories', ticketCategoryRoutes);
+router.use('/admin/setting', adminConfigRoutes);
 
 export default router;
