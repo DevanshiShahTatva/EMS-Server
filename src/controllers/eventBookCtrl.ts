@@ -371,11 +371,11 @@ export const validateTicket = async (req: Request, res: Response) => {
       isAttended: true,
     }).session(session);
 
-    let newBadge = "Bronze";
-    if (updatedUser.total_earned_points >= 1000 || attendedCount >= 10) {
-      newBadge = "Gold";
-    } else if (updatedUser.total_earned_points >= 500) {
-      newBadge = "Silver";
+    let newBadge = 'Bronze';
+    if (updatedUser.total_earned_points >= 2000 || attendedCount >= 10) {
+      newBadge = 'Gold';
+    } else if (updatedUser.total_earned_points >= 1000) {
+      newBadge = 'Silver';
     }
 
     if (updatedUser.current_badge !== newBadge) {
