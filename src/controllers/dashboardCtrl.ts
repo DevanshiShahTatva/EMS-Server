@@ -362,75 +362,99 @@ export const bookingsByTicketType = async (_req: Request, res: Response) => {
     const rcResponse = new ApiResponse();
 
     const pipeline: any[] = [
+      // First get all ticket bookings grouped by ticket ID
       {
         $group: {
           _id: "$ticket",
-          totalBookings: { $sum: "$seats" },
-        },
+          totalBookings: { $sum: "$seats" }
+        }
       },
+      // Lookup ticket details from events
       {
         $lookup: {
           from: "events",
           let: { ticketId: "$_id" },
           pipeline: [
             { $unwind: "$tickets" },
-            {
-              $match: {
-                $expr: {
-                  $eq: [{ $toString: "$tickets._id" }, "$$ticketId"],
-                },
-              },
+            { 
+              $match: { 
+                $expr: { 
+                  $eq: ["$tickets._id", { $toObjectId: "$$ticketId" }] 
+                } 
+              } 
             },
-            {
-              $project: {
-                type: "$tickets.type",
+            { 
+              $project: { 
+                ticketTypeId: "$tickets.type",  // Ensure we're using the correct field
                 totalSeats: "$tickets.totalSeats",
-                totalBooked: "$tickets.totalBookedSeats",
-              },
-            },
+                totalBooked: "$tickets.totalBookedSeats"
+              } 
+            }
           ],
-          as: "ticketInfo",
-        },
+          as: "ticketInfo"
+        }
       },
       { $unwind: "$ticketInfo" },
+      // Lookup ticket type name
+      {
+        $lookup: {
+          from: "tickettypes",
+          localField: "ticketInfo.ticketTypeId",
+          foreignField: "_id",
+          as: "typeDetails"
+        }
+      },
+      { $unwind: { path: "$typeDetails", preserveNullAndEmptyArrays: true } },
+      // Now group by ticket type name to consolidate
+      {
+        $group: {
+          _id: "$typeDetails.name",
+          totalBookings: { $sum: "$totalBookings" },
+          totalSeats: { $sum: "$ticketInfo.totalSeats" },
+          totalBooked: { $sum: "$ticketInfo.totalBooked" },
+          // Calculate available seats from the summed values
+          seatsAvailable: { 
+            $sum: { 
+              $subtract: ["$ticketInfo.totalSeats", "$ticketInfo.totalBooked"] 
+            } 
+          }
+        }
+      },
+      // Calculate percentage after consolidation
       {
         $addFields: {
-          seatsAvailable: {
-            $subtract: ["$ticketInfo.totalSeats", "$ticketInfo.totalBooked"],
-          },
           bookingPercentage: {
-            $round: [
+            $cond: [
+              { $eq: ["$totalSeats", 0] },
+              0,
               {
-                $multiply: [
-                  {
-                    $divide: [
-                      "$ticketInfo.totalBooked",
-                      "$ticketInfo.totalSeats",
-                    ],
-                  },
-                  100,
-                ],
-              },
-              2,
-            ],
-          },
-        },
+                $round: [
+                  { $multiply: [{ $divide: ["$totalBooked", "$totalSeats"] }, 100] },
+                  2
+                ]
+              }
+            ]
+          }
+        }
       },
+      // Final projection
       {
         $project: {
-          ticketType: "$ticketInfo.type",
+          ticketType: "$_id",
           totalBookings: 1,
-          totalSeats: "$ticketInfo.totalSeats",
+          totalSeats: 1,
           seatsAvailable: 1,
           bookingPercentage: 1,
-        },
+          _id: 0
+        }
       },
-      { $sort: { totalBookings: -1 } },
+      { $sort: { totalBookings: -1 } }
     ];
 
     rcResponse.data = await TicketBook.aggregate(pipeline);
     res.status(rcResponse.status).send(rcResponse);
   } catch (err) {
+    console.error("Error in bookingsByTicketType:", err);
     return throwError(res);
   }
 };
