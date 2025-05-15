@@ -95,7 +95,7 @@ export const updateTicketCategory = async (req: Request, res: Response) => {
     });
 
     try {
-        const { name, color, bgColor } = req.body;
+        const { name, color, bgColor, removeIcon } = req.body;
         const isValidId = mongoose.Types.ObjectId.isValid(req.params.id);
 
         if (!isValidId) {
@@ -129,14 +129,27 @@ export const updateTicketCategory = async (req: Request, res: Response) => {
 
         let updateData: any = { name, color, bgColor, isActive: req.body.isActive };
 
-        // Upload new icon if provided
-        if (req.file) {
+        // Handle icon removal or update
+        if (removeIcon === 'true') {
             // Delete existing icon from Cloudinary if present
             if (existingCategory.icon?.imageId) {
                 try {
                     await deleteFromCloudinary(existingCategory.icon.imageId);
                 } catch (err) {
                     log.warn({ err }, 'Failed to delete old icon from Cloudinary');
+                }
+            }
+            updateData.icon = null; // Remove the icon
+        }
+        else if (req.file) {
+            // Delete existing icon from Cloudinary if present
+            if (existingCategory.icon?.imageId) {
+                try {
+                    await deleteFromCloudinary(existingCategory.icon.imageId);
+                } catch (err) {
+                    log.warn({ err }, 'Failed to delete old icon from Cloudinary');
+                    // Continue with new upload even if deletion fails
+                    // (Cloudinary may auto-clean orphaned images)
                 }
             }
 

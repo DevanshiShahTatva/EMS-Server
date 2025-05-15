@@ -8,6 +8,7 @@ import faqRoutes from "./faqRoutes";
 import termsRoutes from "./termsRoutes";
 import feedbackRoutes from "./feedbackRoutes";
 import ticketTypeRoutes from "./ticketTypeRoutes";
+import pointSettingRoutes from "./pointSettingRoutes";
 import ticketCategoryRoutes from "./ticketCategoryRoutes";
 
 const router = Router();
@@ -20,6 +21,7 @@ router.use("/faq", faqRoutes);
 router.use("/terms-and-conditions", termsRoutes);
 router.use("/feedbacks", feedbackRoutes);
 router.use('/ticket-types', ticketTypeRoutes);
+router.use('/point-setting', pointSettingRoutes);
 router.use('/ticket-categories', ticketCategoryRoutes);
 
 export default router;
