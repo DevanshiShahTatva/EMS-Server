@@ -23,9 +23,9 @@ const signupSchema = new mongoose.Schema({
     },
     default: null
   },
-  current_badge: { type: String, enum: ['Bronze', 'Silver', 'Gold'], default: "Bronze" },
-  current_points: { type: Number, default: 0 },
-  total_earned_points: { type: Number, default: 0 },
+  current_badge: { type: String, enum: ['Bronze', 'Silver', 'Gold'] },
+  current_points: { type: Number },
+  total_earned_points: { type: Number },
   address: { type: String, default: null },
   country: { type: String, default: null },
   state: { type: String, default: null },

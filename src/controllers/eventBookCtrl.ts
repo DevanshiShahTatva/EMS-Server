@@ -1,10 +1,6 @@
 import mongoose from "mongoose";
 import { Request, Response } from "express";
-import {
-  ApiResponse,
-  getUserIdFromToken,
-  throwError,
-} from "../helper/common";
+import { ApiResponse, getUserIdFromToken, throwError } from "../helper/common";
 import TicketBook from "../models/eventBooking.model";
 import { HTTP_STATUS_CODE } from "../utilits/enum";
 import {
@@ -16,6 +12,7 @@ import Event from "../models/event.model";
 import { appLogger } from "../helper/logger";
 import User from "../models/signup.model";
 import PointTransaction from "../models/pointTransaction";
+import { CancelCharge } from "../models/cancelCharge.model";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-08-16" as any,
@@ -28,7 +25,8 @@ export const postTicketBook = async (req: Request, res: any) => {
     session.startTransaction();
 
     const rcResponse = new ApiResponse();
-    const { eventId, ticketId, seats, totalAmount, paymentId, usedPoints } = req.body;
+    const { eventId, ticketId, seats, totalAmount, paymentId, usedPoints } =
+      req.body;
 
     // find user from token
     const user = getUserIdFromToken(req);
@@ -43,10 +41,12 @@ export const postTicketBook = async (req: Request, res: any) => {
     }
 
     // validate event and ticket - populate the ticket type
-    const event = await mongoose.model("Event").findOne({ _id: eventId })
+    const event = await mongoose
+      .model("Event")
+      .findOne({ _id: eventId })
       .populate({
-        path: 'tickets.type',
-        select: 'name description'
+        path: "tickets.type",
+        select: "name description",
       });
 
     if (!event) {
@@ -56,7 +56,7 @@ export const postTicketBook = async (req: Request, res: any) => {
     const selectedTicket = event.tickets.find(
       (ticket: any) => ticket._id.toString() === ticketId
     );
-    
+
     if (!selectedTicket) {
       return throwError(
         res,
@@ -65,7 +65,10 @@ export const postTicketBook = async (req: Request, res: any) => {
       );
     }
 
-    if (selectedTicket.totalBookedSeats + seats > selectedTicket.totalSeats) {
+    if (
+      selectedTicket.totalBookedSeats + Number(seats) >
+      selectedTicket.totalSeats
+    ) {
       return throwError(
         res,
         "Not enough available seats",
@@ -107,10 +110,10 @@ export const postTicketBook = async (req: Request, res: any) => {
       { session }
     );
 
-    if(usedPoints) {
+    if (usedPoints) {
       const userId = await getUserIdFromToken(req);
 
-      await User.findById(userId).then(user => {
+      await User.findById(userId).then((user) => {
         const newPoints = Math.max(0, user.current_points - usedPoints);
         return User.findByIdAndUpdate(userId, { current_points: newPoints });
       });
@@ -118,7 +121,7 @@ export const postTicketBook = async (req: Request, res: any) => {
       await PointTransaction.create({
         userId: userId,
         points: usedPoints,
-        activityType: 'REDEEM',
+        activityType: "REDEEM",
         description: `Used in ${event.title} event`,
       });
     }
@@ -135,7 +138,7 @@ export const postTicketBook = async (req: Request, res: any) => {
 
         if (userData) {
           // Get the populated ticket type name
-          const ticketTypeName = selectedTicket.type?.name || ""; 
+          const ticketTypeName = selectedTicket.type?.name || "";
           await sendBookingConfirmationEmail(
             userData.email,
             userData.name,
@@ -179,13 +182,10 @@ export const getTicketBooks = async (req: Request, res: any) => {
 
     rcResponse.data = await TicketBook.find({ user: userId })
       .sort(sort)
-      .populate('user')
+      .populate("user")
       .populate({
-        path: 'event',
-        populate: [
-          { path: 'category' },
-          { path: 'tickets.type' }
-        ]
+        path: "event",
+        populate: [{ path: "category" }, { path: "tickets.type" }],
       })
       .exec();
 
@@ -235,12 +235,6 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
       );
     }
 
-    const refund = await stripe.refunds.create({
-      payment_intent: paymentId,
-      amount: booking.totalAmount ? booking.totalAmount : undefined,
-      reason: "requested_by_customer",
-    });
-
     // 5. Update ticket availability
     const event = await Event.findById(booking.event).session(session);
     const ticketType = event.tickets.find(
@@ -264,23 +258,45 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
       { bookingStatus: "cancelled", cancelledAt: new Date() }
     ).session(session);
 
+    const getCharges = await CancelCharge.findOne();
+
+    const charge = (getCharges.charge / 100) * booking.totalAmount;
+    const refundAmount = booking.totalAmount - charge;
+
+    // 7. No refund if pay amount is 0
+    if (booking.totalAmount === 0 || refundAmount < 20) {
+      rcResponse.message = "Booking cancelled successfully";
+      rcResponse.data = {
+        amount: booking.totalAmount,
+        eventTitle: event.title,
+        cancelledAt: new Date(),
+      };
+    } else {
+      const refund = await stripe.refunds.create({
+        payment_intent: paymentId,
+        amount: refundAmount,
+        reason: "requested_by_customer",
+      });
+
+      rcResponse.message = "Booking cancelled and refund processed";
+      rcResponse.data = {
+        refundId: refund.id,
+        amount: refund.amount,
+        eventTitle: event.title,
+        cancelledAt: new Date(),
+      };
+
+      cancelEventTicketMail(
+        booking.user.email,
+        booking.user.name,
+        booking.event.title,
+        booking.ticket,
+        String(refund.amount)
+      );
+    }
+
     await session.commitTransaction();
 
-    rcResponse.message = "Booking cancelled and refund processed";
-    rcResponse.data = {
-      refundId: refund.id,
-      amount: refund.amount,
-      eventTitle: event.title,
-      cancelledAt: new Date(),
-    };
-
-    cancelEventTicketMail(
-      booking.user.email,
-      booking.user.name,
-      booking.event.title,
-      booking.ticket,
-      booking.totalAmount
-    );
     res.status(rcResponse.status).send(rcResponse);
   } catch (error) {
     console.log("Error::", error);
@@ -289,31 +305,31 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
 };
 
 export const validateTicket = async (req: Request, res: Response) => {
-   const log = appLogger.child({ method: 'validateTicket', body: req.body });
-   const session = await mongoose.startSession();
-   session.startTransaction();
-   try {
-    const { ticketId } = req.body
+  const log = appLogger.child({ method: "validateTicket", body: req.body });
+  const session = await mongoose.startSession();
+  session.startTransaction();
+  try {
+    const { ticketId } = req.body;
 
     if (!ticketId) {
       return res.status(HTTP_STATUS_CODE.NOT_FOUND).json({
         success: false,
-        message: "Invalid Ticket"
+        message: "Invalid Ticket",
       });
     }
 
     const ticket = await TicketBook.findById(ticketId)
-    .populate("event")
-    .populate("user")
-    .session(session);
+      .populate("event")
+      .populate("user")
+      .session(session);
 
     if (!ticket) {
       await session.abortTransaction();
       session.endSession();
-      return throwError(res, 'Ticket not found', HTTP_STATUS_CODE.NOT_FOUND);
+      return throwError(res, "Ticket not found", HTTP_STATUS_CODE.NOT_FOUND);
     }
 
-     // Check if already marked as attended
+    // Check if already marked as attended
     if (ticket.isAttended) {
       await session.abortTransaction();
       session.endSession();
@@ -327,7 +343,10 @@ export const validateTicket = async (req: Request, res: Response) => {
     if (!ticket.event || new Date(ticket.event.endDateTime) < currentTime) {
       await session.abortTransaction();
       session.endSession();
-      return res.status(400).json({ success: false, message: "Ticket is no longer valid as the event has already ended" });
+      return res.status(400).json({
+        success: false,
+        message: "Ticket is no longer valid as the event has already ended",
+      });
     }
 
     // Mark the ticket as validated
@@ -342,8 +361,8 @@ export const validateTicket = async (req: Request, res: Response) => {
       {
         $inc: {
           current_points: pointsToAdd,
-          total_earned_points: pointsToAdd
-        }
+          total_earned_points: pointsToAdd,
+        },
       },
       { new: true, session }
     );
@@ -353,27 +372,30 @@ export const validateTicket = async (req: Request, res: Response) => {
     }).session(session);
 
     let newBadge = 'Bronze';
-    if (updatedUser.total_earned_points >= 1000 || attendedCount >= 10) {
+    if (updatedUser.total_earned_points >= 2000 || attendedCount >= 10) {
       newBadge = 'Gold';
-    } else if (updatedUser.total_earned_points >= 500) {
+    } else if (updatedUser.total_earned_points >= 1000) {
       newBadge = 'Silver';
     }
 
     if (updatedUser.current_badge !== newBadge) {
       await User.updateOne(
-        { _id: userId }, 
+        { _id: userId },
         { current_badge: newBadge },
         { session }
-        );
+      );
     }
 
-    await PointTransaction.create([{
-      userId: userId,
-      points: pointsToAdd,
-      activityType: 'EARN',
-      description: `Attended ${ticket.event.title} event`,
-    }],
-    { session }
+    await PointTransaction.create(
+      [
+        {
+          userId: userId,
+          points: pointsToAdd,
+          activityType: "EARN",
+          description: `Attended ${ticket.event.title} event`,
+        },
+      ],
+      { session }
     );
 
     await session.commitTransaction();
@@ -382,12 +404,16 @@ export const validateTicket = async (req: Request, res: Response) => {
     res.status(HTTP_STATUS_CODE.OK).json({
       success: true,
       data: "Validate",
-      message: 'Ticket validated successfully'
+      message: "Ticket validated successfully",
     });
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
-    log.error({ err: error }, 'Error validating your tickets');
-    return throwError(res, 'Failed to validate ticket', HTTP_STATUS_CODE.BAD_REQUEST);
+    log.error({ err: error }, "Error validating your tickets");
+    return throwError(
+      res,
+      "Failed to validate ticket",
+      HTTP_STATUS_CODE.BAD_REQUEST
+    );
   }
-}
+};
