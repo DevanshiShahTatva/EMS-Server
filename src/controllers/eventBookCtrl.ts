@@ -113,18 +113,29 @@ export const postTicketBook = async (req: Request, res: any) => {
     if (usedPoints) {
       const userId = await getUserIdFromToken(req);
 
-      await User.findById(userId).then((user) => {
-        const newPoints = Math.max(0, user.current_points - usedPoints);
-        return User.findByIdAndUpdate(userId, { current_points: newPoints });
-      });
+      const user = await User.findById(userId).session(session);
+      if (!user) throw new Error("User not found");
 
-      await PointTransaction.create({
-        userId: userId,
-        points: usedPoints,
-        activityType: "REDEEM",
-        description: `Used in ${event.title} event`,
-      });
+      const newPoints = Math.max(0, user.current_points - usedPoints);
+      await User.findByIdAndUpdate(
+        userId,
+        { current_points: newPoints },
+        { session }
+      );
+
+      await PointTransaction.create(
+        [
+          {
+            userId: userId,
+            points: usedPoints,
+            activityType: "REDEEM",
+            description: `Used in ${event.title} event`,
+          },
+        ],
+        { session }
+      );
     }
+
     await session.commitTransaction();
     session.endSession();
 
@@ -153,7 +164,6 @@ export const postTicketBook = async (req: Request, res: any) => {
         console.error("Failed to send booking email:", emailError);
       }
     }
-
     rcResponse.data = booking;
     rcResponse.message = "Ticket booked successfully.";
     return res.status(rcResponse.status).send(rcResponse);
@@ -264,10 +274,20 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
     const refundAmount = booking.totalAmount - charge;
 
     // 7. No refund if pay amount is 0
-    if (booking.totalAmount === 0 || refundAmount < 20) {
+    if (booking.totalAmount === 0) {
+      await TicketBook.findByIdAndUpdate(
+        bookingId,
+        {
+          bookingStatus: "cancelled",
+          cancelledAt: new Date(),
+          totalAmount: 0,
+        },
+        { session }
+      );
+
       rcResponse.message = "Booking cancelled successfully";
       rcResponse.data = {
-        amount: booking.totalAmount,
+        amount: 0,
         eventTitle: event.title,
         cancelledAt: new Date(),
       };
@@ -277,6 +297,17 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
         amount: refundAmount,
         reason: "requested_by_customer",
       });
+
+      // Update booking with cancelled status and adjusted refund
+      await TicketBook.findByIdAndUpdate(
+        bookingId,
+        {
+          bookingStatus: "cancelled",
+          cancelledAt: new Date(),
+          totalAmount: charge,
+        },
+        { session }
+      );
 
       rcResponse.message = "Booking cancelled and refund processed";
       rcResponse.data = {
@@ -354,50 +385,58 @@ export const validateTicket = async (req: Request, res: Response) => {
     await ticket.save();
 
     const userId = ticket.user._id;
-    const pointsToAdd = ticket.event.numberOfPoint ?? 0;
+    const eventId = ticket.event._id;
+    const isTransactionExist = await PointTransaction.findOne({
+      userId: userId,
+      eventId: eventId,
+      activityType: "EARN",
+    });
+    if (!isTransactionExist) {
+      const pointsToAdd = ticket.event.numberOfPoint ?? 0;
 
-    const updatedUser = await User.findByIdAndUpdate(
-      userId,
-      {
-        $inc: {
-          current_points: pointsToAdd,
-          total_earned_points: pointsToAdd,
+      const updatedUser = await User.findByIdAndUpdate(
+        userId,
+        {
+          $inc: {
+            current_points: pointsToAdd,
+            total_earned_points: pointsToAdd,
+          },
         },
-      },
-      { new: true, session }
-    );
-    const attendedCount = await TicketBook.countDocuments({
-      user: userId,
-      isAttended: true,
-    }).session(session);
+        { new: true, session }
+      );
+      const attendedCount = await TicketBook.countDocuments({
+        user: userId,
+        isAttended: true,
+      }).session(session);
 
-    let newBadge = 'Bronze';
-    if (updatedUser.total_earned_points >= 2000 || attendedCount >= 10) {
-      newBadge = 'Gold';
-    } else if (updatedUser.total_earned_points >= 1000) {
-      newBadge = 'Silver';
-    }
+      let newBadge = "Bronze";
+      if (updatedUser.total_earned_points >= 2000 || attendedCount >= 10) {
+        newBadge = "Gold";
+      } else if (updatedUser.total_earned_points >= 1000) {
+        newBadge = "Silver";
+      }
 
-    if (updatedUser.current_badge !== newBadge) {
-      await User.updateOne(
-        { _id: userId },
-        { current_badge: newBadge },
+      if (updatedUser.current_badge !== newBadge) {
+        await User.updateOne(
+          { _id: userId },
+          { current_badge: newBadge },
+          { session }
+        );
+      }
+
+      await PointTransaction.create(
+        [
+          {
+            userId: userId,
+            eventId: eventId,
+            points: pointsToAdd,
+            activityType: "EARN",
+            description: `Attended ${ticket.event.title} event`,
+          },
+        ],
         { session }
       );
     }
-
-    await PointTransaction.create(
-      [
-        {
-          userId: userId,
-          points: pointsToAdd,
-          activityType: "EARN",
-          description: `Attended ${ticket.event.title} event`,
-        },
-      ],
-      { session }
-    );
-
     await session.commitTransaction();
     session.endSession();
 
