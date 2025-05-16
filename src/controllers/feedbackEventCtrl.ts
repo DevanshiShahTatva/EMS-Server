@@ -21,21 +21,26 @@ export const feedbackEvent = async (req: Request, res: Response): Promise<void> 
         res.status(rcResponse.status).json({ message: 'Rating is required.' })
         return
       }
+      console.log("Getting event",eventId);
       //Checking if event is available
       const event = await Event.findById(eventId)
       if (!event) {
         res.status(rcResponse.status).json({ message: 'Event not found.' })
         return
       }
+      console.log("Getting event",event);
       //Checking if user is available
       const userId = new Types.ObjectId(getUserIdFromToken(req));
+      console.log("Getting event",userId);
       if(!userId){
         res.status(rcResponse.status).json({message:'User not found.'})
       }
       const user = await User.findById(userId);
+      console.log("Getting user",user);
       const name = user.name;
       const email = user.email;    
       const profileimage = user.profileimage.url;
+      console.log("This is feedback incoming", name,rating);
       const feedback = await Feedback.create({
         name,
         email,
@@ -45,6 +50,7 @@ export const feedbackEvent = async (req: Request, res: Response): Promise<void> 
         userId,
         profileimage
       })
+      console.log("Feedback is",feedback);
       rcResponse.data = {
         success:"success",
         message:"Feedback submitted successfully!",
