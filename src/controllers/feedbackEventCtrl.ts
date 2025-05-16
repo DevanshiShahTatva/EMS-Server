@@ -39,7 +39,7 @@ export const feedbackEvent = async (req: Request, res: Response): Promise<void> 
       console.log("Getting user",user);
       const name = user.name;
       const email = user.email;    
-      const profileimage = user.profileimage.url;
+      const profileimage = user.profileimage ? user.profileimage.url : null;
       console.log("This is feedback incoming", name,rating);
       const feedback = await Feedback.create({
         name,
