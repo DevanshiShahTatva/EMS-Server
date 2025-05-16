@@ -152,7 +152,7 @@ export const deleteTicketType = async (req: Request, res: Response) => {
         });
 
         if (eventUsingTicketType) {
-            return res.status(HTTP_STATUS_CODE.CONFLICT).json({
+            return res.status(400).json({
                 success: false,
                 message: `Cannot delete ticket type as it is being used by one or more events"`
             });
