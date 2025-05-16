@@ -10,6 +10,8 @@ const feedbackSchema = new mongoose.Schema(
     description: { type: String },
     isEdited:{ type:Boolean, default:false },
     profileimage: { type: String || null, default:null} ,
+    eventTitle:{type:String},
+    eventImage:{type:String},
   },
   { timestamps: true }
 )
