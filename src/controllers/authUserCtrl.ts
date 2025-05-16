@@ -24,6 +24,7 @@ import mongoose, { Types } from "mongoose";
 import { deleteFromCloudinary, saveFileToCloud } from "../helper/cloudniry";
 import crypto from 'crypto';
 import { appLogger } from "../helper/logger";
+import PointTransaction from "../models/pointTransaction";
 
 dotenv.config();
 
@@ -37,6 +38,8 @@ const ensurePointSettings = async () => {
 };
 
 export const registerUser = async (req: Request, res: Response) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
   try {
     const rcResponse = new ApiResponse();
     const sort = { created: -1 };
@@ -45,6 +48,8 @@ export const registerUser = async (req: Request, res: Response) => {
 
     // empty field validation
     if (!name || !email || !password) {
+      await session.abortTransaction();
+      session.endSession();
       return throwError(
         res,
         "Please fill required data",
@@ -55,6 +60,8 @@ export const registerUser = async (req: Request, res: Response) => {
     // validation for if email is exists
     const isEmailTaken = await findOne("User", { email: body.email }, sort);
     if (isEmailTaken) {
+      await session.abortTransaction();
+      session.endSession();
       return throwError(
         res,
         "Email has already been taken",
@@ -68,16 +75,32 @@ export const registerUser = async (req: Request, res: Response) => {
 
     const newBody = {
       ...body,
-      current_points: 0,
-      current_badge: "Bronze",
       password: hashPassword,
+      ...(body.role !== "organizer" && {
+        current_points: 25,
+        total_earned_points: 25,
+        current_badge: "Bronze",
+      }),
     };
 
-    rcResponse.data = await create("User", newBody);
+    const user = new User(newBody);
+    rcResponse.data = await user.save({ session });
+    await PointTransaction.create([{
+      userId: rcResponse.data._id,
+      points: 25,
+      activityType: 'EARN',
+      description: `Welcome bonus points`,
+    }],
+      { session }
+    );
+    await session.commitTransaction();
+    session.endSession();
     rcResponse.message = "You are register successfully.";
     sendWelcomeEmail(email, name);
     return res.status(rcResponse.status).send(rcResponse);
   } catch (err) {
+    await session.abortTransaction();
+    session.endSession();
     return throwError(res);
   }
 };
