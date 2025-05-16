@@ -360,6 +360,15 @@ export const validateTicket = async (req: Request, res: Response) => {
       return throwError(res, "Ticket not found", HTTP_STATUS_CODE.NOT_FOUND);
     }
 
+    // Check is ticket is cancelled or not
+    if (ticket.bookingStatus === "cancelled") {
+      return throwError(
+        res,
+        "This ticket has been cancelled",
+        HTTP_STATUS_CODE.BAD_REQUEST
+      );
+    }
+
     // Check if already marked as attended
     if (ticket.isAttended) {
       await session.abortTransaction();
@@ -369,8 +378,10 @@ export const validateTicket = async (req: Request, res: Response) => {
         message: "This ticket has already been used to attend the event.",
       });
     }
-    // Ensure event is populated and not expired
+    
     const currentTime = new Date();
+
+    // Ensure event is populated and not expired
     if (!ticket.event || new Date(ticket.event.endDateTime) < currentTime) {
       await session.abortTransaction();
       session.endSession();
@@ -378,6 +389,20 @@ export const validateTicket = async (req: Request, res: Response) => {
         success: false,
         message: "Ticket is no longer valid as the event has already ended",
       });
+    }
+
+    // Check if current time is within 2 hours of the event's start time
+    const eventStartTime = new Date(ticket.event.startDateTime);
+    const twoHoursBeforeStart = new Date(eventStartTime.getTime() - 2 * 60 * 60 * 1000);
+
+    if (currentTime < twoHoursBeforeStart) {
+      await session.abortTransaction();
+      session.endSession();
+      return throwError(
+        res,
+        "Entry is only allowed within 2 hours before the event start time.",
+        HTTP_STATUS_CODE.BAD_REQUEST
+      );
     }
 
     // Mark the ticket as validated
