@@ -5,6 +5,7 @@ import { HTTP_STATUS_CODE } from '../utilits/enum';
 import mongoose from 'mongoose';
 import TicketCategory from '../models/ticketCategory.model';
 import { deleteFromCloudinary, saveFileToCloud } from '../helper/cloudniry';
+import Event from '../models/event.model';
 
 export const getAllTicketCategories = async (_req: Request, res: Response) => {
     const log = appLogger.child({ method: 'getAllTicketCategories' });
@@ -196,6 +197,16 @@ export const deleteTicketCategory = async (req: Request, res: Response) => {
             });
         }
 
+        // Check if any event is using this category
+        const eventsUsingCategory = await Event.exists({ category: req.params.id });
+        
+        if (eventsUsingCategory) {
+            return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
+                success: false,
+                message: 'Cannot delete category as it is being used by one or more events'
+            });
+        }
+
         // Get the category first to access the Cloudinary imageId
         const category = await TicketCategory.findById(req.params.id);
         if (!category) {
@@ -209,7 +220,7 @@ export const deleteTicketCategory = async (req: Request, res: Response) => {
             });
         }
 
-        // Proceed to delete from DB regardless of Cloudinary result
+        // Proceed to delete from DB
         await TicketCategory.findByIdAndDelete(req.params.id);
 
         res.status(HTTP_STATUS_CODE.OK).json({

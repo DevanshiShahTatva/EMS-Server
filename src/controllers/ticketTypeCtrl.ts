@@ -4,6 +4,7 @@ import { appLogger } from '../helper/logger';
 import { throwError } from '../helper/common';
 import { HTTP_STATUS_CODE } from '../utilits/enum';
 import mongoose from 'mongoose';
+import Event from '../models/event.model';
 
 export const getAllTicketTypes = async (_req: Request, res: Response) => {
     const log = appLogger.child({ method: 'getAllTicketTypes' });
@@ -143,6 +144,17 @@ export const deleteTicketType = async (req: Request, res: Response) => {
             return res.status(HTTP_STATUS_CODE.NOT_FOUND).json({
                 success: false,
                 message: `Invalid Record Id: ${req.params.id}`
+            });
+        }
+
+        const eventUsingTicketType = await Event.findOne({
+            'tickets.type': req.params.id
+        });
+
+        if (eventUsingTicketType) {
+            return res.status(HTTP_STATUS_CODE.CONFLICT).json({
+                success: false,
+                message: `Cannot delete ticket type as it is being used by one or more events"`
             });
         }
 
