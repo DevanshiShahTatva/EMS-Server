@@ -124,12 +124,14 @@ export const postTicketBook = async (req: Request, res: any) => {
       );
 
       await PointTransaction.create(
-        [{
-          userId: userId,
-          points: usedPoints,
-          activityType: "REDEEM",
-          description: `Used in ${event.title} event`,
-        }],
+        [
+          {
+            userId: userId,
+            points: usedPoints,
+            activityType: "REDEEM",
+            description: `Used in ${event.title} event`,
+          },
+        ],
         { session }
       );
     }
@@ -272,10 +274,20 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
     const refundAmount = booking.totalAmount - charge;
 
     // 7. No refund if pay amount is 0
-    if (booking.totalAmount === 0 || refundAmount < 20) {
+    if (booking.totalAmount === 0) {
+      await TicketBook.findByIdAndUpdate(
+        bookingId,
+        {
+          bookingStatus: "cancelled",
+          cancelledAt: new Date(),
+          totalAmount: 0,
+        },
+        { session }
+      );
+
       rcResponse.message = "Booking cancelled successfully";
       rcResponse.data = {
-        amount: booking.totalAmount,
+        amount: 0,
         eventTitle: event.title,
         cancelledAt: new Date(),
       };
@@ -285,6 +297,17 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
         amount: refundAmount,
         reason: "requested_by_customer",
       });
+
+      // Update booking with cancelled status and adjusted refund
+      await TicketBook.findByIdAndUpdate(
+        bookingId,
+        {
+          bookingStatus: "cancelled",
+          cancelledAt: new Date(),
+          totalAmount: charge,
+        },
+        { session }
+      );
 
       rcResponse.message = "Booking cancelled and refund processed";
       rcResponse.data = {
@@ -337,6 +360,15 @@ export const validateTicket = async (req: Request, res: Response) => {
       return throwError(res, "Ticket not found", HTTP_STATUS_CODE.NOT_FOUND);
     }
 
+    // Check is ticket is cancelled or not
+    if (ticket.bookingStatus === "cancelled") {
+      return throwError(
+        res,
+        "This ticket has been cancelled",
+        HTTP_STATUS_CODE.BAD_REQUEST
+      );
+    }
+
     // Check if already marked as attended
     if (ticket.isAttended) {
       await session.abortTransaction();
@@ -346,8 +378,10 @@ export const validateTicket = async (req: Request, res: Response) => {
         message: "This ticket has already been used to attend the event.",
       });
     }
-    // Ensure event is populated and not expired
+    
     const currentTime = new Date();
+
+    // Ensure event is populated and not expired
     if (!ticket.event || new Date(ticket.event.endDateTime) < currentTime) {
       await session.abortTransaction();
       session.endSession();
@@ -355,6 +389,20 @@ export const validateTicket = async (req: Request, res: Response) => {
         success: false,
         message: "Ticket is no longer valid as the event has already ended",
       });
+    }
+
+    // Check if current time is within 2 hours of the event's start time
+    const eventStartTime = new Date(ticket.event.startDateTime);
+    const twoHoursBeforeStart = new Date(eventStartTime.getTime() - 2 * 60 * 60 * 1000);
+
+    if (currentTime < twoHoursBeforeStart) {
+      await session.abortTransaction();
+      session.endSession();
+      return throwError(
+        res,
+        "Entry is only allowed within 2 hours before the event start time.",
+        HTTP_STATUS_CODE.BAD_REQUEST
+      );
     }
 
     // Mark the ticket as validated
@@ -386,11 +434,11 @@ export const validateTicket = async (req: Request, res: Response) => {
         isAttended: true,
       }).session(session);
 
-      let newBadge = 'Bronze';
+      let newBadge = "Bronze";
       if (updatedUser.total_earned_points >= 2000 || attendedCount >= 10) {
-        newBadge = 'Gold';
+        newBadge = "Gold";
       } else if (updatedUser.total_earned_points >= 1000) {
-        newBadge = 'Silver';
+        newBadge = "Silver";
       }
 
       if (updatedUser.current_badge !== newBadge) {
@@ -402,13 +450,15 @@ export const validateTicket = async (req: Request, res: Response) => {
       }
 
       await PointTransaction.create(
-        [{
-          userId: userId,
-          eventId: eventId,
-          points: pointsToAdd,
-          activityType: "EARN",
-          description: `Attended ${ticket.event.title} event`,
-        }],
+        [
+          {
+            userId: userId,
+            eventId: eventId,
+            points: pointsToAdd,
+            activityType: "EARN",
+            description: `Attended ${ticket.event.title} event`,
+          },
+        ],
         { session }
       );
     }
