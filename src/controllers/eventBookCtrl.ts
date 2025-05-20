@@ -13,11 +13,26 @@ import { appLogger } from "../helper/logger";
 import User from "../models/signup.model";
 import PointTransaction from "../models/pointTransaction";
 import { CancelCharge } from "../models/cancelCharge.model";
+import Voucher from "../models/voucher.model";
+import { generateUniquePromoCode } from "../helper/generatePromoCode";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-08-16" as any,
   typescript: true,
 });
+
+const badgeVoucherMap: Record<string, { percentage: number, maxDiscount: number, description: string }> = {
+  Silver: {
+    percentage: 25,
+    maxDiscount: 50,
+    description: "25% upto ₹50 discount (One time voucher)",
+  },
+  Gold: {
+    percentage: 50,
+    maxDiscount: 100,
+    description: "50% upto ₹100 discount (One time voucher)",
+  },
+};
 
 export const postTicketBook = async (req: Request, res: any) => {
   const session = await mongoose.startSession();
@@ -25,7 +40,7 @@ export const postTicketBook = async (req: Request, res: any) => {
     session.startTransaction();
 
     const rcResponse = new ApiResponse();
-    const { eventId, ticketId, seats, totalAmount, paymentId, usedPoints } =
+    const { eventId, ticketId, seats, totalAmount, discount, paymentId, usedPoints, voucherId } =
       req.body;
 
     // find user from token
@@ -105,14 +120,14 @@ export const postTicketBook = async (req: Request, res: any) => {
           seats,
           totalAmount,
           paymentId,
+          discount: discount || 0,
         },
       ],
       { session }
     );
 
+    const userId = await getUserIdFromToken(req);
     if (usedPoints) {
-      const userId = await getUserIdFromToken(req);
-
       const user = await User.findById(userId).session(session);
       if (!user) throw new Error("User not found");
 
@@ -134,6 +149,16 @@ export const postTicketBook = async (req: Request, res: any) => {
         ],
         { session }
       );
+    } else if (voucherId) {
+      const voucher = await Voucher.findOne({ _id: voucherId });
+      if (!voucher) throw new Error("Voucher not found");
+
+      if (voucher.appliedBy?.toString() !== userId.toString()) {
+        throw new Error("You are not allowed to mark this voucher as used");
+      }
+    
+      voucher.used = true;
+      await voucher.save();
     }
 
     await session.commitTransaction();
@@ -447,6 +472,25 @@ export const validateTicket = async (req: Request, res: Response) => {
           { current_badge: newBadge },
           { session }
         );
+        if (badgeVoucherMap[newBadge]) {
+          const { percentage, maxDiscount, description } = badgeVoucherMap[newBadge];
+          const promoCode = await generateUniquePromoCode();
+          const expireTime = new Date();
+          expireTime.setMonth(expireTime.getMonth() + 1);
+
+          await Voucher.create(
+            [{
+              userId,
+              promoCode,
+              expireTime,
+              percentage,
+              maxDiscount,
+              used: false,
+              description,
+            }],
+            { session }
+          );
+        }
       }
 
       await PointTransaction.create(
