@@ -296,7 +296,7 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
     const getCharges = await CancelCharge.findOne();
 
     const charge = (getCharges.charge / 100) * booking.totalAmount;
-    const refundAmount = booking.totalAmount - charge;
+    const refundAmount =  Math.trunc(booking.totalAmount - charge);
 
     // 7. No refund if pay amount is 0
     if (booking.totalAmount === 0) {
