@@ -11,6 +11,7 @@ import ticketTypeRoutes from "./ticketTypeRoutes";
 import pointSettingRoutes from "./pointSettingRoutes";
 import ticketCategoryRoutes from "./ticketCategoryRoutes";
 import adminConfigRoutes from "./adminConfigRoutes";
+import voucherRoutes from "./voucherRoutes";
 
 const router = Router();
 router.use(authRoutes);
@@ -25,5 +26,6 @@ router.use('/ticket-types', ticketTypeRoutes);
 router.use('/point-setting', pointSettingRoutes);
 router.use('/ticket-categories', ticketCategoryRoutes);
 router.use('/admin/setting', adminConfigRoutes);
+router.use('/voucher', voucherRoutes);
 
 export default router;
