@@ -4,6 +4,7 @@ import { appLogger } from '../helper/logger';
 import { throwError } from '../helper/common';
 import { HTTP_STATUS_CODE } from '../utilits/enum';
 import aiGeneratorService from '../services/ai-generator.service';
+import { TERMS_GENERATION_PROMPT } from '../helper/prompts';
 
 export const getTerms = async (req: Request, res: Response) => {
   const log = appLogger.child({ method: 'getTerms' });
@@ -31,7 +32,7 @@ export const updateTerms = async (req: Request, res: Response) => {
     const { content } = req.body;
 
     if (!content) {
-      log.warn('Validation failed - content is required');
+      // log.warn('Validation failed - content is required');
       return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
         success: false,
         message: 'Content is required'
@@ -42,7 +43,7 @@ export const updateTerms = async (req: Request, res: Response) => {
     terms.content = content;
     await terms.save();
 
-    log.info('Terms updated successfully');
+    // log.info('Terms updated successfully');
     res.status(HTTP_STATUS_CODE.OK).json({
       success: true,
       data: terms,
@@ -59,7 +60,7 @@ export const resetTerms = async (req: Request, res: Response) => {
 
   try {
     await Terms.deleteMany({});
-    log.info('Terms reset successfully');
+    // log.info('Terms reset successfully');
     res.status(HTTP_STATUS_CODE.OK).json({
       success: true,
       message: 'Terms reset to initial state'
@@ -77,43 +78,15 @@ export const generateTerms = async (req: Request, res: any) => {
     const { keywords } = req.body;
 
     if (!(keywords as string[]).length) {
-      log.warn('Missing required fields');
+      // log.warn('Missing required fields');
       return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
         success: false,
         message: 'Title, start time, end time, and location are required',
       });
     }
+    const prompt = TERMS_GENERATION_PROMPT(keywords)
 
-    const TERMS_GENERATION_PROMPT = `
-        Generate a comprehensive Terms and Conditions document for a digital service based on the following keywords: 
-        **${keywords}**
-
-        Structure the document with clear sections and markdown formatting:
-
-        1. **Introduction**  
-          - Briefly explain the purpose of these terms.  
-          - Mention key services covered (${keywords}).  
-
-        2. **User Obligations**  
-          - List user responsibilities related to: ${keywords}.  
-
-        3. **Prohibited Activities**  
-          - Clearly state what users CANNOT do with ${keywords}.  
-
-        4. **Data Privacy**  
-          - Explain how data from ${keywords} is collected/used.  
-
-        5. **Termination**  
-          - Conditions under which access to ${keywords} may be revoked.  
-
-        **Requirements:**  
-        - Use professional legal tone (but avoid overly complex jargon).  
-        - Keep each section under 150 words.  
-        - Format with Markdown (bold headings, lists where needed).  
-        - Ensure clauses are enforceable and GDPR/CCPA compliant if applicable.  
-      `;
-
-    const generatedText = await aiGeneratorService.generateText(TERMS_GENERATION_PROMPT);
+    const generatedText = await aiGeneratorService.generateText(prompt);
 
     res.status(HTTP_STATUS_CODE.OK).json({
       success: true,
