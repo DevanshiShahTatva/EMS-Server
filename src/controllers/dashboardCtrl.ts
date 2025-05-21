@@ -12,6 +12,7 @@ import {
 import { HTTP_STATUS_CODE, MONTH_NAMES } from "../utilits/enum";
 import User from "../models/signup.model";
 import mongoose from "mongoose";
+import Feedback from "../models/feedback.model";
 
 export const dashboardOverview = async (req: Request, res: Response) => {
   try {
@@ -833,3 +834,158 @@ export const userBadgeInfo = async (req: Request, res: Response) => {
     return throwError(err);
   }
 }
+
+export const getEventFeedbackAnalytics = async (
+  req: Request<{}, {}, {}, { period: PeriodType; reference: string }>,
+  res: Response
+) => {
+  try {
+    const rcResponse = new ApiResponse();
+    const period = req.query.period || "yearly";
+    const reference = req.query.reference;
+
+    let startDate, endDate, currentReference;
+
+    if (period === "overall") {
+      startDate = new Date(0);
+      endDate = new Date();
+      currentReference = "overall";
+    } else {
+      ({ startDate, endDate, currentReference } = getDateRange(period, reference));
+    }
+
+    const pipeline: any[] = [
+      {
+        $match: {
+          createdAt: {
+            $gte: startDate,
+            $lte: endDate,
+          },
+        },
+      },
+      {
+        $group: {
+          _id: "$eventId",
+          totalFeedbacks: { $sum: 1 },
+          averageRating: { $avg: "$rating" },
+          ratingsCount: {
+            $push: "$rating",
+          },
+          eventTitle: { $first: "$eventTitle" },
+          eventImage: { $first: "$eventImage" },
+        },
+      },
+      {
+        $addFields: {
+          ratingsBreakdown: {
+            $arrayToObject: {
+              $map: {
+                input: [1, 2, 3, 4, 5],
+                as: "star",
+                in: {
+                  k: { $toString: "$$star" },
+                  v: {
+                    $size: {
+                      $filter: {
+                        input: "$ratingsCount",
+                        as: "rating",
+                        cond: { $eq: ["$$rating", "$$star"] },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          eventId: "$_id",
+          eventTitle: 1,
+          eventImage: 1,
+          averageRating: { $round: ["$averageRating", 1] },
+          totalFeedbacks: 1,
+          ratingsBreakdown: 1,
+        },
+      },
+    ];
+
+    const data = await Feedback.aggregate(pipeline);
+
+    rcResponse.data = {
+      period,
+      currentReference,
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+      data,
+    };
+    return res.status(200).send(rcResponse);
+  } catch (err) {
+    console.error("Error in getEventFeedbackAnalytics:", err);
+    return throwError(res);
+  }
+};
+
+export const getEventFeedbackDistribution = async (
+  req: Request<{ eventId: string }, {}, {}, { period?: PeriodType; reference?: string }>,
+  res: Response
+) => {
+  try {
+    const rcResponse = new ApiResponse();
+    const { eventId } = req.params;
+    const period = req.query.period || "overall";
+    const reference = req.query.reference;
+
+    let startDate: Date, endDate: Date, currentReference: string;
+
+    if (period === "overall") {
+      startDate = new Date(0); 
+      endDate = new Date();   
+      currentReference = "overall";
+    } else {
+      ({ startDate, endDate, currentReference } = getDateRange(period, reference!));
+    }
+
+    const distribution = await Feedback.aggregate([
+      {
+        $match: {
+          eventId: new mongoose.Types.ObjectId(eventId),
+          createdAt: {
+            $gte: startDate,
+            $lte: endDate,
+          },
+        },
+      },
+      {
+        $group: {
+          _id: "$rating",
+          count: { $sum: 1 },
+        },
+      },
+      {
+        $sort: { _id: 1 },
+      },
+    ]);
+
+    const fullDistribution = [1, 2, 3, 4, 5].map((star) => ({
+      rating: star,
+      count: distribution.find((d) => d._id === star)?.count || 0,
+    }));
+
+    rcResponse.data = {
+      eventId,
+      period,
+      currentReference,
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+      ratings: fullDistribution,
+    };
+
+    res.status(200).json(rcResponse);
+  } catch (error) {
+    console.error("Error in getEventFeedbackDistribution:", error);
+    return throwError(res);
+  }
+};
