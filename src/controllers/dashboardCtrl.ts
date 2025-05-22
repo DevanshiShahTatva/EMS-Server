@@ -989,3 +989,98 @@ export const getEventFeedbackDistribution = async (
     return throwError(res);
   }
 };
+
+
+export const getFeedbackOverviewRatings = async (
+  req: Request<{}, {}, {}, { period?: PeriodType; reference?: string }>,
+  res: Response
+) => {
+  try {
+    const rcResponse = new ApiResponse();
+    const period = req.query.period || 'yearly';
+    const reference = req.query.reference;
+
+    const { startDate, endDate, groupFormat, currentReference } = getDateRange(period, reference!);
+
+    const previousReference =
+      period === 'yearly'
+        ? (parseInt(currentReference) - 1).toString()
+        : (() => {
+            const [y, m] = currentReference.split('-').map(Number);
+            const prevDate = new Date(y, m - 2); 
+            return `${prevDate.getFullYear()}-${(prevDate.getMonth() + 1).toString().padStart(2, '0')}`;
+          })();
+
+    const { startDate: prevStart, endDate: prevEnd } = getDateRange(period, previousReference);
+
+    const currentPeriodData = await Feedback.aggregate([
+      {
+        $match: {
+          createdAt: {
+            $gte: startDate,
+            $lte: endDate,
+          },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            $dateToString: { format: groupFormat, date: '$createdAt' },
+          },
+          count: { $sum: 1 },
+          averageRating: { $avg: '$rating' },
+        },
+      },
+      {
+        $sort: { _id: 1 },
+      },
+    ]);
+
+    const currentTotal = currentPeriodData.reduce((sum, d) => sum + d.count, 0);
+    const currentAvgRating =
+      currentPeriodData.length > 0
+        ? currentPeriodData.reduce((sum, d) => sum + d.averageRating * d.count, 0) / currentTotal
+        : 0;
+
+    const previousTotalData = await Feedback.aggregate([
+      {
+        $match: {
+          createdAt: {
+            $gte: prevStart,
+            $lte: prevEnd,
+          },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const previousTotal = previousTotalData?.[0]?.count || 0;
+    const growth =
+      previousTotal === 0 ? null : ((currentTotal - previousTotal) / previousTotal) * 100;
+
+    rcResponse.data = {
+      period,
+      currentReference,
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+      totalFeedbacks: currentTotal,
+      averageRating: parseFloat(currentAvgRating.toFixed(2)),
+      feedbackGrowthRate: growth !== null ? parseFloat(growth.toFixed(2)) : null,
+      breakdown: currentPeriodData.map((entry) => ({
+        period: entry._id,
+        feedbacks: entry.count,
+        averageRating: parseFloat(entry.averageRating.toFixed(2)),
+      })),
+    };
+
+    return res.status(200).json(rcResponse);
+  } catch (error) {
+    console.error('Error in getFeedbackOverviewRatings:', error);
+    return throwError(res);
+  }
+};
