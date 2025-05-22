@@ -25,6 +25,7 @@ import { deleteFromCloudinary, saveFileToCloud } from "../helper/cloudniry";
 import crypto from 'crypto';
 import { appLogger } from "../helper/logger";
 import PointTransaction from "../models/pointTransaction";
+import Voucher from "../models/voucher.model";
 
 dotenv.config();
 
@@ -302,6 +303,9 @@ export const userDetails = async (req: Request, res: Response) => {
     ];
 
     rcResponse.data = await User.aggregate(pipeline);
+    const vouchers = await Voucher.find({ userId }).select("-_id -__v -appliedAt -appliedBy -createdAt -updatedAt -userId");
+    rcResponse.data[0].vouchers = vouchers ?? [];
+
     return res.status(rcResponse.status).send(rcResponse);
   } catch (error) {
     return throwError(res);

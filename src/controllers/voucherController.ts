@@ -8,26 +8,26 @@ export const applyPromoCode = async (req: Request, res: Response) => {
     const { promoCode, amount } = req.body;
     const voucher = await Voucher.findOne({ userId, promoCode });
     if (!voucher) {
-      return res.status(400).json({
+      return res.status(200).json({
         success: false,
         message: "Invalid promo code"
       });
     }
     if (voucher.used) {
-      return res.status(400).json({
+      return res.status(200).json({
         success: false,
         message: "Promo code already used"
       });
     }
     if (new Date() > new Date(voucher.expireTime)) {
-      return res.status(400).json({
+      return res.status(200).json({
         success: false,
         message: "Promo code expired"
       });
     }
 
     if (voucher.appliedBy && voucher.appliedBy.toString() !== userId.toString()) {
-      return res.status(400).json({
+      return res.status(200).json({
         success: false,
         message: "Promo code already applied by another user"
       });
@@ -44,7 +44,7 @@ export const applyPromoCode = async (req: Request, res: Response) => {
       discount,
       success: true,
       voucherId: voucher._id,
-      message: `Promo code applied. You saved ₹${discount.toFixed(2)}`,
+      message: `-₹${discount.toFixed(2)} (${voucher.percentage}% off)`,
     });
   } catch (error) {
     return throwError(error, 'Failed', 400);
