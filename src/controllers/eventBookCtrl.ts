@@ -25,12 +25,12 @@ const badgeVoucherMap: Record<string, { percentage: number, maxDiscount: number,
   Silver: {
     percentage: 25,
     maxDiscount: 50,
-    description: "25% upto ₹50 discount (One time voucher)",
+    description: "25% upto ₹50 discount",
   },
   Gold: {
     percentage: 50,
     maxDiscount: 100,
-    description: "50% upto ₹100 discount (One time voucher)",
+    description: "50% upto ₹100 discount",
   },
 };
 
@@ -156,9 +156,12 @@ export const postTicketBook = async (req: Request, res: any) => {
       if (voucher.appliedBy?.toString() !== userId.toString()) {
         throw new Error("You are not allowed to mark this voucher as used");
       }
-    
+
+      if (voucher.used) {
+        throw new Error("Voucher already used");
+      }
       voucher.used = true;
-      await voucher.save();
+      await voucher.save({ session });
     }
 
     await session.commitTransaction();
