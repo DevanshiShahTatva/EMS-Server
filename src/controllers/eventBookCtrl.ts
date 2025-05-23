@@ -25,12 +25,12 @@ const badgeVoucherMap: Record<string, { percentage: number, maxDiscount: number,
   Silver: {
     percentage: 25,
     maxDiscount: 50,
-    description: "25% upto ₹50 discount",
+    description: "25% upto ₹50 discount (One time voucher)",
   },
   Gold: {
     percentage: 50,
     maxDiscount: 100,
-    description: "50% upto ₹100 discount",
+    description: "50% upto ₹100 discount (One time voucher)",
   },
 };
 
