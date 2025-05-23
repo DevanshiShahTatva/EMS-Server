@@ -153,7 +153,7 @@ export const deleteTicketType = async (req: Request, res: Response) => {
 
         const eventUsingTicketTypeList = await Event.find({
             'tickets.type': req.params.id
-        });
+        }).sort({ endDateTime: -1 });
 
         if (eventUsingTicketTypeList.length > 0) {
             return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
