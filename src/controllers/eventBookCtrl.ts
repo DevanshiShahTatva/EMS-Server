@@ -289,6 +289,8 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
       ticketType.totalBookedSeats - booking.seats
     );
 
+    console.log("Check::111");
+
     // 6. Save changes and delete booking
     await event.save({ session });
     await TicketBook.findByIdAndUpdate(
@@ -301,6 +303,7 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
     const charge = (getCharges.charge / 100) * booking.totalAmount;
     const refundAmount =  Math.trunc(booking.totalAmount - charge);
 
+    console.log("Check::222");
     // 7. No refund if pay amount is 0
     if (booking.totalAmount === 0) {
       await TicketBook.findByIdAndUpdate(
@@ -319,7 +322,10 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
         eventTitle: event.title,
         cancelledAt: new Date(),
       };
+
+      console.log("Check::333");
     } else {
+      console.log("Check::444");
       const refund = await stripe.refunds.create({
         payment_intent: paymentId,
         amount: refundAmount,
@@ -353,6 +359,8 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
       //   String(refund.amount)
       // );
     }
+
+    console.log("Check::555");
 
     res.status(rcResponse.status).send(rcResponse);
     await session.commitTransaction();
