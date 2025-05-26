@@ -316,7 +316,7 @@ export const settingResetPassword = async (req: Request, res: Response) => {
   try {
     const rcResponse = new ApiResponse();
     const userId = getUserIdFromToken(req);
-    const { newPassword } = req.body;
+    const { newPassword, oldPassword } = req.body;
 
     const pipeline: any[] = [
       { $match: { _id: new Types.ObjectId(userId) } },
@@ -324,6 +324,15 @@ export const settingResetPassword = async (req: Request, res: Response) => {
     ];
 
     const currentUser = (await User.aggregate(pipeline)) as any;
+
+    const isOldPasswordSame = await bcryptjs.compare(
+      oldPassword,
+      currentUser[0].password
+    )
+
+    if (!isOldPasswordSame) {
+      return throwError(res, "The current password you entered is incorrect", 400);
+    }
 
     const isBothPasswordSame = await bcryptjs.compare(
       newPassword,
