@@ -57,7 +57,9 @@ export const dashboardOverview = async (req: Request, res: Response) => {
 export const topLikedEvents = async (req: Request, res: Response) => {
   try {
     const rcResponse = new ApiResponse();
-    let limit;
+    let limit: number | undefined; // No default limit
+
+    // Parse limit only if provided in the query
     if (req.query?.limit) {
       const parsedLimit = parseInt(req.query.limit as string);
       if (!isNaN(parsedLimit) && parsedLimit > 0) {
@@ -65,22 +67,46 @@ export const topLikedEvents = async (req: Request, res: Response) => {
       }
     }
 
-    const pipeline: any[] = [
+    let pipeline: any[] = [
+      // Calculate likesCount for all events
       { $addFields: { likesCount: { $size: { $ifNull: ["$likes", []] } } } },
     ];
 
-    pipeline.push({ $sort: { likesCount: -1 } });
-
+    // Conditional logic based on limit
     if (limit) {
-      pipeline.push({ $limit: limit });
+      // When limit is provided: filter, sort, and limit
+      pipeline.push(
+        { $match: { likesCount: { $gt: 0 } } }, // Exclude 0 likes
+        { $sort: { likesCount: -1 } },
+        { $limit: limit }
+      );
+    } else {
+      // When no limit: sort all events (including 0 likes)
+      pipeline.push({ $sort: { likesCount: -1 } });
     }
 
-    pipeline.push({ $project: { title: 1, likesCount: 1, category: 1 } });
+    // Common stages for both cases
+    pipeline.push(
+      // Include necessary fields
+      { $project: { title: 1, likesCount: 1, category: 1 } },
+      // Populate category
+      {
+        $lookup: {
+          from: "ticketcategories",
+          localField: "category",
+          foreignField: "_id",
+          as: "category",
+        },
+      },
+      // Convert category array to object
+      { $unwind: "$category" }
+    );
 
     const events = await Event.aggregate(pipeline);
     rcResponse.data = events;
     res.status(rcResponse.status).send(rcResponse);
   } catch (err) {
+    console.log("error::", err);
     return throwError(res);
   }
 };
@@ -689,7 +715,10 @@ export const getCancellationRate = async (req: Request, res: Response) => {
     ];
 
     if (limit) {
-      pipeline.push({ $limit: parseInt(limit as string) });
+      pipeline.push(
+        { $match: { cancelledUsers: { $gt: 0 } } },
+        { $limit: parseInt(limit as string) }
+      );
     };
 
     // Run the aggregation

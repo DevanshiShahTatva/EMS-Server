@@ -25,12 +25,12 @@ const badgeVoucherMap: Record<string, { percentage: number, maxDiscount: number,
   Silver: {
     percentage: 25,
     maxDiscount: 50,
-    description: "25% upto ₹50 discount",
+    description: "25% upto ₹50 discount (One time voucher)",
   },
   Gold: {
     percentage: 50,
     maxDiscount: 100,
-    description: "50% upto ₹100 discount",
+    description: "50% upto ₹100 discount (One time voucher)",
   },
 };
 
@@ -345,7 +345,7 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
         cancelledAt: new Date(),
       };
 
-      cancelEventTicketMail(
+      await cancelEventTicketMail(
         booking.user.email,
         booking.user.name,
         booking.event.title,
@@ -354,12 +354,17 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
       );
     }
 
-    await session.commitTransaction();
+    console.log("Check::555");
 
+    await session.commitTransaction();
+    console.log("Check::666");
     res.status(rcResponse.status).send(rcResponse);
   } catch (error) {
     console.log("Error::", error);
+    await session.abortTransaction();
     return throwError(res);
+  } finally {
+    session.endSession(); // Critical cleanup
   }
 };
 

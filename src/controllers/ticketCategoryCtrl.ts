@@ -202,7 +202,7 @@ export const deleteTicketCategory = async (req: Request, res: Response) => {
         }
 
         // Check if any event is using this category
-        const eventUsingCategoryList = await Event.find({ category: req.params.id });
+        const eventUsingCategoryList = await Event.find({ category: req.params.id }).sort({ endDateTime: -1 });
 
         if (eventUsingCategoryList.length > 0) {
             return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
