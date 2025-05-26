@@ -270,9 +270,9 @@ export const cancelEventTicketMail = async (
 
   try {
     console.log("__dirname", __dirname);
-    
+
     const emailTemplate = fs.readFileSync(
-      path.join(__dirname, "../emails/event-cancel-email.html"), // Path to your HTML file
+      path.resolve(__dirname, "../emails/event-cancel-email.html"), // Path to your HTML file
       "utf-8"
     );
 
