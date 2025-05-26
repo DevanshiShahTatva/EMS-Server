@@ -90,6 +90,7 @@ export const getFeedbackByEventId = async (req: Request, res: Response) => {
         const feedbackResult = await Feedback.find({eventId:eventId})
         if (!feedbackResult || feedbackResult.length === 0) {
           res.status(rcResponse.status).json({ message: 'No feedbacks found.' })
+          return
         }
         rcResponse.data = feedbackResult;
         return res.status(rcResponse.status).send(rcResponse);
