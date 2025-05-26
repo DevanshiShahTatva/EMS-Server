@@ -345,18 +345,17 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
         cancelledAt: new Date(),
       };
 
-      cancelEventTicketMail(
-        booking.user.email,
-        booking.user.name,
-        booking.event.title,
-        booking.ticket,
-        String(refund.amount)
-      );
+      // cancelEventTicketMail(
+      //   booking.user.email,
+      //   booking.user.name,
+      //   booking.event.title,
+      //   booking.ticket,
+      //   String(refund.amount)
+      // );
     }
 
-    await session.commitTransaction();
-
     res.status(rcResponse.status).send(rcResponse);
+    await session.commitTransaction();
   } catch (error) {
     console.log("Error::", error);
     await session.abortTransaction();
