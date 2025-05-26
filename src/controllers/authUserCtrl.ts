@@ -77,11 +77,9 @@ export const registerUser = async (req: Request, res: Response) => {
     const newBody = {
       ...body,
       password: hashPassword,
-      ...(body.role !== "organizer" && {
-        current_points: 25,
-        total_earned_points: 25,
-        current_badge: "Bronze",
-      }),
+      current_points: 25,
+      total_earned_points: 25,
+      current_badge: "Bronze",
     };
 
     const user = new User(newBody);
