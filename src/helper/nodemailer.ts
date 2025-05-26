@@ -63,7 +63,7 @@ export const sendOtpToEmail = async (
   const customizedHtml = emailOtpTemplate
     .replace("[Recipient Name]", name)
     .replace("[(OTP)]", String(otp))
-    .replace("[home page link]", `${process.env.CLIENT_URL}`);
+    .replace("[home page link]", `${process.env.CLIENT_URL1}`);
 
   const mailOptions = {
     from: `Evently <${process.env.EMAIL_USER}>`,

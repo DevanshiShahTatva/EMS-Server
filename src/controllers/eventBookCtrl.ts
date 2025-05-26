@@ -359,7 +359,10 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
     res.status(rcResponse.status).send(rcResponse);
   } catch (error) {
     console.log("Error::", error);
+    await session.abortTransaction();
     return throwError(res);
+  } finally {
+    session.endSession(); // Critical cleanup
   }
 };
 
