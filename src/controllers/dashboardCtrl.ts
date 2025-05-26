@@ -1113,3 +1113,108 @@ export const getFeedbackOverviewRatings = async (
     return throwError(res);
   }
 };
+
+export const getEventOverviewFeedback = async (req: Request, res: Response) => {
+  try {
+    const rcResponse = new ApiResponse();
+
+    const events = await Event.find({}, { _id: 1, title: 1 });
+
+    const eventIds = events.map(event => event._id);
+
+    const feedbackStats = await Feedback.aggregate([
+      {
+        $match: {
+          eventId: { $in: eventIds }
+        }
+      },
+      {
+        $group: {
+          _id: '$eventId',
+          totalFeedbacks: { $sum: 1 },
+          averageRating: { $avg: '$rating' }
+        }
+      }
+    ]);
+
+    const statsMap = feedbackStats.reduce((acc, curr) => {
+      acc[curr._id.toString()] = {
+        totalFeedbacks: curr.totalFeedbacks,
+        averageRating: parseFloat(curr.averageRating.toFixed(2))
+      };
+      return acc;
+    }, {} as Record<string, { totalFeedbacks: number; averageRating: number }>);
+
+    const result = events.map(event => ({
+      eventId: event._id,
+      title: event.title,
+      totalFeedbacks: statsMap[event._id.toString()]?.totalFeedbacks || 0,
+      averageRating: statsMap[event._id.toString()]?.averageRating || 0
+    }));
+
+    rcResponse.data = result;
+    return res.status(200).json(rcResponse);
+  } catch (error) {
+    console.error('Error in getEventOverviewFeedback:', error);
+    return throwError(res);
+  }
+};
+
+export const getOverallFeedbackDistribution = async (
+  req: Request<{}, {}, {}, { period?: PeriodType; reference?: string }>,
+  res: Response
+) => {
+  try {
+    const rcResponse = new ApiResponse();
+    const period = req.query.period || 'overall';
+    const reference = req.query.reference;
+
+    let startDate: Date, endDate: Date, currentReference: string;
+
+    if (period === 'overall') {
+      startDate = new Date(0);
+      endDate = new Date();
+      currentReference = 'overall';
+    } else {
+      ({ startDate, endDate, currentReference } = getDateRange(period, reference!));
+    }
+
+    const distribution = await Feedback.aggregate([
+      {
+        $match: {
+          createdAt: {
+            $gte: startDate,
+            $lte: endDate,
+          },
+        },
+      },
+      {
+        $group: {
+          _id: '$rating',
+          count: { $sum: 1 },
+        },
+      },
+      {
+        $sort: { _id: 1 },
+      },
+    ]);
+
+    const fullDistribution = [1, 2, 3, 4, 5].map((star) => ({
+      rating: star,
+      count: distribution.find((d) => d._id === star)?.count || 0,
+    }));
+
+    rcResponse.data = {
+      period,
+      currentReference,
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+      ratings: fullDistribution,
+    };
+
+    return res.status(200).json(rcResponse);
+  } catch (error) {
+    console.error('Error in getOverallFeedbackDistribution:', error);
+    return throwError(res);
+  }
+};

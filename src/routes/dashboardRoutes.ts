@@ -16,6 +16,8 @@ import {
   getEventFeedbackAnalytics,
   getEventFeedbackDistribution,
   getFeedbackOverviewRatings,
+  getEventOverviewFeedback,
+  getOverallFeedbackDistribution,
 } from "../controllers/dashboardCtrl";
 
 const dashboardRoutes = Router();
@@ -35,4 +37,6 @@ dashboardRoutes.get("/user-badge-info", validateAdminToken, userBadgeInfo);
 dashboardRoutes.get("/feedback-analytics",validateAdminToken, getEventFeedbackAnalytics);
 dashboardRoutes.get("/feedback-analytics/:id",validateAdminToken,getEventFeedbackDistribution);
 dashboardRoutes.get("/feedback-overview",validateAdminToken, getFeedbackOverviewRatings);
+dashboardRoutes.get("/feedback-details",validateAdminToken, getEventOverviewFeedback);
+dashboardRoutes.get("/feedback-all-feedbacks",validateAdminToken,getOverallFeedbackDistribution);
 export default dashboardRoutes;
