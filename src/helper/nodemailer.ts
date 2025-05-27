@@ -56,15 +56,20 @@ export const sendOtpToEmail = async (
   name: string
 ) => {
   try {
+    console.log("DATA:", email, otp, name);
     const emailOtpTemplate = fs.readFileSync(
       path.join(__dirname, "../emails/otp-verification-email-template.html"),
       "utf-8"
     );
 
+    console.log("DATA:1", process.env.CLIENT_URL1);
+
     const customizedHtml = emailOtpTemplate
       .replace("[Recipient Name]", name)
       .replace("[(OTP)]", String(otp))
       .replace("[home page link]", `${process.env.CLIENT_URL1}`);
+
+      console.log("DATA:2");
 
     const mailOptions = {
       from: `Evently <${process.env.EMAIL_USER}>`,
@@ -79,9 +84,12 @@ export const sendOtpToEmail = async (
         },
       ],
     };
+
+    console.log("DATA:3");
     
     await transporter.sendMail(mailOptions);
   } catch (error) {
+    console.log("ERROR::")
     console.error("Error while sending welcome email:", error);
   }
 };
