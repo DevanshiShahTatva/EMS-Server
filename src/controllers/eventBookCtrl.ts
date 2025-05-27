@@ -265,7 +265,7 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
     );
     const paymentId = paymentSession.payment_intent as string;
 
-    if (!paymentId) {
+    if (!paymentId && !Boolean(booking.totalAmount == 0)) {
       await session.abortTransaction();
       return throwError(
         res,
