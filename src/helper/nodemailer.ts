@@ -55,31 +55,31 @@ export const sendOtpToEmail = async (
   otp: number,
   name: string
 ) => {
-  const emailOtpTemplate = fs.readFileSync(
-    path.join(__dirname, "../emails/otp-verification-email-template.html"),
-    "utf-8"
-  );
-
-  const customizedHtml = emailOtpTemplate
-    .replace("[Recipient Name]", name)
-    .replace("[(OTP)]", String(otp))
-    .replace("[home page link]", `${process.env.CLIENT_URL1}`);
-
-  const mailOptions = {
-    from: `Evently <${process.env.EMAIL_USER}>`,
-    to: email,
-    subject: "Welcome to Evently!",
-    html: customizedHtml,
-    attachments: [
-      {
-        filename: "main_logo.png",
-        path: path.join(__dirname, "../emails/assets/main_logo.png"),
-        cid: "companyLogo",
-      },
-    ],
-  };
-
   try {
+    const emailOtpTemplate = fs.readFileSync(
+      path.join(__dirname, "../emails/otp-verification-email-template.html"),
+      "utf-8"
+    );
+
+    const customizedHtml = emailOtpTemplate
+      .replace("[Recipient Name]", name)
+      .replace("[(OTP)]", String(otp))
+      .replace("[home page link]", `${process.env.CLIENT_URL1}`);
+
+    const mailOptions = {
+      from: `Evently <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: "Welcome to Evently!",
+      html: customizedHtml,
+      attachments: [
+        {
+          filename: "main_logo.png",
+          path: path.join(__dirname, "../emails/assets/main_logo.png"),
+          cid: "companyLogo",
+        },
+      ],
+    };
+    
     await transporter.sendMail(mailOptions);
   } catch (error) {
     console.error("Error while sending welcome email:", error);

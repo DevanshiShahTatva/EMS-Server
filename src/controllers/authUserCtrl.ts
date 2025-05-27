@@ -208,9 +208,11 @@ export const forgotPassword = async (req: Request, res: any) => {
     );
     rcResponse.data = { email: email };
     await sendOtpToEmail(email, otp, findUser.name);
+    
     rcResponse.message = "Otp send successfully to your email";
     return res.status(rcResponse.status).send(rcResponse);
   } catch (err) {
+    console.log("ERROR", err);
     return throwError(res);
   }
 };
