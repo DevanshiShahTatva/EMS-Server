@@ -266,6 +266,7 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
     const paymentId = paymentSession.payment_intent as string;
 
     if (!paymentId && !Boolean(booking.totalAmount == 0)) {
+      await session.abortTransaction();
       return throwError(
         res,
         "No valid PaymentIntent found for this Checkout Session",
@@ -291,6 +292,7 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
 
     // 6. Save changes and delete booking
     await event.save({ session });
+
     await TicketBook.findByIdAndUpdate(
       { _id: bookingId },
       { bookingStatus: "cancelled", cancelledAt: new Date() }
@@ -345,7 +347,7 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
         cancelledAt: new Date(),
       };
 
-      cancelEventTicketMail(
+      await cancelEventTicketMail(
         booking.user.email,
         booking.user.name,
         booking.event.title,
@@ -355,7 +357,6 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
     }
 
     await session.commitTransaction();
-
     res.status(rcResponse.status).send(rcResponse);
   } catch (error) {
     console.log("Error::", error);

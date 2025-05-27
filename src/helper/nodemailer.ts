@@ -266,32 +266,32 @@ export const cancelEventTicketMail = async (
   ticketId: string,
   refundAmount: string
 ) => {
-  const emailTemplate = fs.readFileSync(
-    path.join(__dirname, "../emails/event-cancel-email.html"), // Path to your HTML file
-    "utf-8"
-  );
-
-  const customizedHtml = emailTemplate
-    .replace(/\{{ticketId}}/g, ticketId)
-    .replace(/\{{eventName}}/g, eventName)
-    .replace(/\{{userName}}/g, userName)
-    .replace(/\{{refundAmount}}/g, refundAmount);
-
-  const mailOptions = {
-    from: `Evently <${process.env.EMAIL_USER}>`,
-    to: userEmail,
-    subject: "Ticket Cancellation",
-    html: customizedHtml,
-    attachments: [
-      {
-        filename: "main_logo.png",
-        path: path.join(__dirname, "../emails/assets/main_logo.png"),
-        cid: "companyLogo",
-      },
-    ],
-  };
-
   try {
+    const emailTemplate = fs.readFileSync(
+      path.join(__dirname, "../emails/event-cancel-email.html"), // Path to your HTML file
+      "utf-8"
+    );
+
+    const customizedHtml = emailTemplate
+      .replace(/\{{ticketId}}/g, ticketId)
+      .replace(/\{{eventName}}/g, eventName)
+      .replace(/\{{userName}}/g, userName)
+      .replace(/\{{refundAmount}}/g, refundAmount);
+
+    const mailOptions = {
+      from: `Evently <${process.env.EMAIL_USER}>`,
+      to: userEmail,
+      subject: "Ticket Cancellation",
+      html: customizedHtml,
+      attachments: [
+        {
+          filename: "main_logo.png",
+          path: path.join(__dirname, "../emails/assets/main_logo.png"),
+          cid: "companyLogo",
+        },
+      ],
+    };
+
     await transporter.sendMail(mailOptions);
   } catch (error) {
     console.error("Error while sending welcome email:", error);
