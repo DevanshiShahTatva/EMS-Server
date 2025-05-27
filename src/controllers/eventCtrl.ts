@@ -59,7 +59,6 @@ export const getEvents = async (req: Request, res: Response) => {
   try {
     const rcResponse = new ApiResponse();
     const userId = getUserIdFromToken(req);
-
     const pipeline: any[] = [
       { $match: {} },
 
@@ -132,16 +131,35 @@ export const getEvents = async (req: Request, res: Response) => {
             : false,
         },
       },
-
-      // Step 5: Cleanup fields
+      // Step 5. Lookup for feedback for this event
+      {
+        $lookup:{
+          from:"feedbacks",
+          localField:"_id",
+          foreignField:"eventId",
+          as:"feedbacks",
+        },
+      },
+      // // Step 6: Calculate average rating and total ratings
+      {
+        $addFields:{
+          averageRating:{
+            $ifNull:[{$avg:"$feedbacks.rating"},0],
+          },
+          totalFeedbacks:{
+            $ifNull:[{$size:"$feedbacks"},0],
+          },
+        },
+      },
+      // Step 7: Cleanup fields
       {
         $project: {
           likes: 0,
           __v: 0,
+          feedbacks:0,
         },
       },
     ];
-
     const events = await Event.aggregate(pipeline);
     rcResponse.data = events;
     return res.status(rcResponse.status).send(rcResponse);
