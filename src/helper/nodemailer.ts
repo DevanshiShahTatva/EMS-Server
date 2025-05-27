@@ -266,13 +266,9 @@ export const cancelEventTicketMail = async (
   ticketId: string,
   refundAmount: string
 ) => {
-  console.log("DATA::", userEmail, userName, eventName, ticketId, refundAmount);
-
   try {
-    console.log("__dirname", __dirname);
-
     const emailTemplate = fs.readFileSync(
-      path.resolve(__dirname, "../emails/event-cancel-email.html"), // Path to your HTML file
+      path.join(__dirname, "../emails/event-cancel-email.html"), // Path to your HTML file
       "utf-8"
     );
 
@@ -296,10 +292,8 @@ export const cancelEventTicketMail = async (
       ],
     };
 
-    console.log("DATA:: send");
     await transporter.sendMail(mailOptions);
   } catch (error) {
-    console.log("DATA:: send", error);
     console.error("Error while sending welcome email:", error);
   }
 };

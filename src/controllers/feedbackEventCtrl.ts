@@ -69,7 +69,7 @@ export const getFeedbackByUserId = async (req: Request, res: Response) => {
         }
         const feedbackResult = await Feedback.find({userId:userId})
         if (!feedbackResult || feedbackResult.length === 0) {
-        return throwError(res, "No feedbacks found");
+        res.status(rcResponse.status).json({message:'No Feedbacks found.'})
         }
         rcResponse.data = feedbackResult;
         return res.status(rcResponse.status).send(rcResponse);
@@ -89,7 +89,8 @@ export const getFeedbackByEventId = async (req: Request, res: Response) => {
         }
         const feedbackResult = await Feedback.find({eventId:eventId})
         if (!feedbackResult || feedbackResult.length === 0) {
-        return throwError(res, "No feedbacks found");
+          res.status(rcResponse.status).json({ message: 'No feedbacks found.' })
+          return
         }
         rcResponse.data = feedbackResult;
         return res.status(rcResponse.status).send(rcResponse);
