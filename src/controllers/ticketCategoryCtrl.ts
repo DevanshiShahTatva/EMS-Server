@@ -12,9 +12,13 @@ export const getAllTicketCategories = async (_req: Request, res: Response) => {
 
     try {
         const ticketCategories = await TicketCategory.find().sort({ createdAt: -1 });
+        const ticketCategoriesWithIsUsed = await Promise.all(ticketCategories.map(async (ticketCategory) => {
+            const eventCount = await Event.countDocuments({ category: ticketCategory._id });
+            return { ...ticketCategory.toObject(), isUsed: eventCount > 0 };
+        }));
         res.status(HTTP_STATUS_CODE.OK).json({
             success: true,
-            data: ticketCategories,
+            data: ticketCategoriesWithIsUsed,
             message: 'Ticket categories retrieved successfully'
         });
     } catch (error) {
@@ -198,11 +202,12 @@ export const deleteTicketCategory = async (req: Request, res: Response) => {
         }
 
         // Check if any event is using this category
-        const eventsUsingCategory = await Event.exists({ category: req.params.id });
-        
-        if (eventsUsingCategory) {
+        const eventUsingCategoryList = await Event.find({ category: req.params.id }).sort({ endDateTime: -1 });
+
+        if (eventUsingCategoryList.length > 0) {
             return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
                 success: false,
+                data: eventUsingCategoryList,
                 message: 'Cannot delete category as it is being used by one or more events'
             });
         }

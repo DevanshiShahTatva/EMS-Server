@@ -13,11 +13,26 @@ import { appLogger } from "../helper/logger";
 import User from "../models/signup.model";
 import PointTransaction from "../models/pointTransaction";
 import { CancelCharge } from "../models/cancelCharge.model";
+import Voucher from "../models/voucher.model";
+import { generateUniquePromoCode } from "../helper/generatePromoCode";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-08-16" as any,
   typescript: true,
 });
+
+const badgeVoucherMap: Record<string, { percentage: number, maxDiscount: number, description: string }> = {
+  Silver: {
+    percentage: 25,
+    maxDiscount: 50,
+    description: "25% upto ₹50 discount (One time voucher)",
+  },
+  Gold: {
+    percentage: 50,
+    maxDiscount: 100,
+    description: "50% upto ₹100 discount (One time voucher)",
+  },
+};
 
 export const postTicketBook = async (req: Request, res: any) => {
   const session = await mongoose.startSession();
@@ -25,7 +40,7 @@ export const postTicketBook = async (req: Request, res: any) => {
     session.startTransaction();
 
     const rcResponse = new ApiResponse();
-    const { eventId, ticketId, seats, totalAmount, paymentId, usedPoints } =
+    const { eventId, ticketId, seats, totalAmount, discount, paymentId, usedPoints, voucherId } =
       req.body;
 
     // find user from token
@@ -105,14 +120,14 @@ export const postTicketBook = async (req: Request, res: any) => {
           seats,
           totalAmount,
           paymentId,
+          discount: discount || 0,
         },
       ],
       { session }
     );
 
+    const userId = await getUserIdFromToken(req);
     if (usedPoints) {
-      const userId = await getUserIdFromToken(req);
-
       const user = await User.findById(userId).session(session);
       if (!user) throw new Error("User not found");
 
@@ -134,6 +149,19 @@ export const postTicketBook = async (req: Request, res: any) => {
         ],
         { session }
       );
+    } else if (voucherId) {
+      const voucher = await Voucher.findOne({ _id: voucherId });
+      if (!voucher) throw new Error("Voucher not found");
+
+      if (voucher.appliedBy?.toString() !== userId.toString()) {
+        throw new Error("You are not allowed to mark this voucher as used");
+      }
+
+      if (voucher.used) {
+        throw new Error("Voucher already used");
+      }
+      voucher.used = true;
+      await voucher.save({ session });
     }
 
     await session.commitTransaction();
@@ -238,6 +266,7 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
     const paymentId = paymentSession.payment_intent as string;
 
     if (!paymentId) {
+      await session.abortTransaction();
       return throwError(
         res,
         "No valid PaymentIntent found for this Checkout Session",
@@ -263,6 +292,7 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
 
     // 6. Save changes and delete booking
     await event.save({ session });
+
     await TicketBook.findByIdAndUpdate(
       { _id: bookingId },
       { bookingStatus: "cancelled", cancelledAt: new Date() }
@@ -271,7 +301,7 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
     const getCharges = await CancelCharge.findOne();
 
     const charge = (getCharges.charge / 100) * booking.totalAmount;
-    const refundAmount = booking.totalAmount - charge;
+    const refundAmount =  Math.trunc(booking.totalAmount - charge);
 
     // 7. No refund if pay amount is 0
     if (booking.totalAmount === 0) {
@@ -317,7 +347,7 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
         cancelledAt: new Date(),
       };
 
-      cancelEventTicketMail(
+      await cancelEventTicketMail(
         booking.user.email,
         booking.user.name,
         booking.event.title,
@@ -327,11 +357,13 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
     }
 
     await session.commitTransaction();
-
     res.status(rcResponse.status).send(rcResponse);
   } catch (error) {
     console.log("Error::", error);
+    await session.abortTransaction();
     return throwError(res);
+  } finally {
+    session.endSession(); // Critical cleanup
   }
 };
 
@@ -360,6 +392,15 @@ export const validateTicket = async (req: Request, res: Response) => {
       return throwError(res, "Ticket not found", HTTP_STATUS_CODE.NOT_FOUND);
     }
 
+    // Check is ticket is cancelled or not
+    if (ticket.bookingStatus === "cancelled") {
+      return throwError(
+        res,
+        "This ticket has been cancelled",
+        HTTP_STATUS_CODE.BAD_REQUEST
+      );
+    }
+
     // Check if already marked as attended
     if (ticket.isAttended) {
       await session.abortTransaction();
@@ -369,8 +410,10 @@ export const validateTicket = async (req: Request, res: Response) => {
         message: "This ticket has already been used to attend the event.",
       });
     }
-    // Ensure event is populated and not expired
+    
     const currentTime = new Date();
+
+    // Ensure event is populated and not expired
     if (!ticket.event || new Date(ticket.event.endDateTime) < currentTime) {
       await session.abortTransaction();
       session.endSession();
@@ -378,6 +421,20 @@ export const validateTicket = async (req: Request, res: Response) => {
         success: false,
         message: "Ticket is no longer valid as the event has already ended",
       });
+    }
+
+    // Check if current time is within 2 hours of the event's start time
+    const eventStartTime = new Date(ticket.event.startDateTime);
+    const twoHoursBeforeStart = new Date(eventStartTime.getTime() - 2 * 60 * 60 * 1000);
+
+    if (currentTime < twoHoursBeforeStart) {
+      await session.abortTransaction();
+      session.endSession();
+      return throwError(
+        res,
+        "Entry is only allowed within 2 hours before the event start time.",
+        HTTP_STATUS_CODE.BAD_REQUEST
+      );
     }
 
     // Mark the ticket as validated
@@ -422,6 +479,25 @@ export const validateTicket = async (req: Request, res: Response) => {
           { current_badge: newBadge },
           { session }
         );
+        if (badgeVoucherMap[newBadge]) {
+          const { percentage, maxDiscount, description } = badgeVoucherMap[newBadge];
+          const promoCode = await generateUniquePromoCode();
+          const expireTime = new Date();
+          expireTime.setMonth(expireTime.getMonth() + 1);
+
+          await Voucher.create(
+            [{
+              userId,
+              promoCode,
+              expireTime,
+              percentage,
+              maxDiscount,
+              used: false,
+              description,
+            }],
+            { session }
+          );
+        }
       }
 
       await PointTransaction.create(

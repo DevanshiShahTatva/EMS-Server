@@ -63,7 +63,7 @@ export const sendOtpToEmail = async (
   const customizedHtml = emailOtpTemplate
     .replace("[Recipient Name]", name)
     .replace("[(OTP)]", String(otp))
-    .replace("[home page link]", `${process.env.CLIENT_URL}`);
+    .replace("[home page link]", `${process.env.CLIENT_URL1}`);
 
   const mailOptions = {
     from: `Evently <${process.env.EMAIL_USER}>`,
@@ -266,34 +266,40 @@ export const cancelEventTicketMail = async (
   ticketId: string,
   refundAmount: string
 ) => {
-  const emailTemplate = fs.readFileSync(
-    path.join(__dirname, "../emails/event-cancel-email.html"), // Path to your HTML file
-    "utf-8"
-  );
-
-  const customizedHtml = emailTemplate
-    .replace(/\{{ticketId}}/g, ticketId)
-    .replace(/\{{eventName}}/g, eventName)
-    .replace(/\{{userName}}/g, userName)
-    .replace(/\{{refundAmount}}/g, refundAmount);
-
-  const mailOptions = {
-    from: `Evently <${process.env.EMAIL_USER}>`,
-    to: userEmail,
-    subject: "Ticket Cancellation",
-    html: customizedHtml,
-    attachments: [
-      {
-        filename: "main_logo.png",
-        path: path.join(__dirname, "../emails/assets/main_logo.png"),
-        cid: "companyLogo",
-      },
-    ],
-  };
+  console.log("DATA::", userEmail, userName, eventName, ticketId, refundAmount);
 
   try {
+    console.log("__dirname", __dirname);
+
+    const emailTemplate = fs.readFileSync(
+      path.resolve(__dirname, "../emails/event-cancel-email.html"), // Path to your HTML file
+      "utf-8"
+    );
+
+    const customizedHtml = emailTemplate
+      .replace(/\{{ticketId}}/g, ticketId)
+      .replace(/\{{eventName}}/g, eventName)
+      .replace(/\{{userName}}/g, userName)
+      .replace(/\{{refundAmount}}/g, refundAmount);
+
+    const mailOptions = {
+      from: `Evently <${process.env.EMAIL_USER}>`,
+      to: userEmail,
+      subject: "Ticket Cancellation",
+      html: customizedHtml,
+      attachments: [
+        {
+          filename: "main_logo.png",
+          path: path.join(__dirname, "../emails/assets/main_logo.png"),
+          cid: "companyLogo",
+        },
+      ],
+    };
+
+    console.log("DATA:: send");
     await transporter.sendMail(mailOptions);
   } catch (error) {
+    console.log("DATA:: send", error);
     console.error("Error while sending welcome email:", error);
   }
 };

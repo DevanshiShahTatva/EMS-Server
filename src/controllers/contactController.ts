@@ -5,6 +5,7 @@ import { sendContactConfirmationEmail, sendContactNotificationToAdmin } from '..
 import { ApiResponse, throwError } from '../helper/common';
 import { HTTP_STATUS_CODE } from '../utilits/enum';
 import mongoose from 'mongoose';
+import aiGeneratorService from '../services/ai-generator.service';
 
 export const submitContactForm = async (req: Request, res: Response) => {
     const log = appLogger.child({
@@ -185,4 +186,25 @@ export const updateContactStatus = async (req: Request, res: Response) => {
         log.error({ err: error }, 'Error updating contact status');
         return throwError(res, error instanceof Error ? error.message : 'Unknown error', 400);
     }
+};
+
+export const generateContactUsQueryAnswer = async (req: Request, res: Response) => {
+  try {
+
+    const rcResponse = new ApiResponse();
+    const body = req.body;
+
+    const prompt = `Please generate a smart, professional reply or description that can be included in the body of an email, based on the following query/message from a user:
+        Keep it under 100 words. Use markdown formatting with bold headings
+        .
+        "${body.query}"`;
+
+    const generatedText = await aiGeneratorService.generateText(prompt);
+
+    rcResponse.data = generatedText;
+    res.status(rcResponse.status).send(rcResponse);
+  } catch (error) {
+    console.error("Server-side error:", error);
+    throwError(res, "Generation failed");
+  }
 };

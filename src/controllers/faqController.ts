@@ -1,9 +1,10 @@
 import { Request, Response } from 'express';
 import Faq from '../models/faq.model';
 import { appLogger } from '../helper/logger';
-import { throwError } from '../helper/common';
+import { ApiResponse, throwError } from '../helper/common';
 import { HTTP_STATUS_CODE } from '../utilits/enum';
 import mongoose from 'mongoose';
+import aiGeneratorService from '../services/ai-generator.service';
 
 export const getFaqs = async (req: Request, res: Response) => {
     const log = appLogger.child({ method: 'getFaqs' });
@@ -182,4 +183,22 @@ export const deleteFaq = async (req: Request, res: Response) => {
         log.error({ err: error }, 'Error deleting FAQ');
         return throwError(res, error instanceof Error ? error.message : 'Unknown error', HTTP_STATUS_CODE.BAD_REQUEST);
     }
+};
+
+export const generateFaqAnswer = async (req: Request, res: Response) => {
+  try {
+
+    const rcResponse = new ApiResponse();
+    const body = req.body;
+
+    const prompt = `Generate a short, clear answer for the following FAQ question in 1-2 sentences. Avoid unnecessary details and keep the tone professional yet friendly.\n\nQuestion: ${body.question}\nAnswer:`;
+
+    const generatedText = await aiGeneratorService.generateText(prompt);
+
+    rcResponse.data = generatedText;
+    res.status(rcResponse.status).send(rcResponse);
+  } catch (error) {
+    console.error("Server-side error:", error);
+    throwError(res, "Generation failed");
+  }
 };

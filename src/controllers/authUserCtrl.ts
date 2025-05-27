@@ -25,6 +25,7 @@ import { deleteFromCloudinary, saveFileToCloud } from "../helper/cloudniry";
 import crypto from 'crypto';
 import { appLogger } from "../helper/logger";
 import PointTransaction from "../models/pointTransaction";
+import Voucher from "../models/voucher.model";
 
 dotenv.config();
 
@@ -76,11 +77,9 @@ export const registerUser = async (req: Request, res: Response) => {
     const newBody = {
       ...body,
       password: hashPassword,
-      ...(body.role !== "organizer" && {
-        current_points: 25,
-        total_earned_points: 25,
-        current_badge: "Bronze",
-      }),
+      current_points: 25,
+      total_earned_points: 25,
+      current_badge: "Bronze",
     };
 
     const user = new User(newBody);
@@ -302,6 +301,9 @@ export const userDetails = async (req: Request, res: Response) => {
     ];
 
     rcResponse.data = await User.aggregate(pipeline);
+    const vouchers = await Voucher.find({ userId }).select("-_id -__v -appliedAt -appliedBy -createdAt -updatedAt -userId");
+    rcResponse.data[0].vouchers = vouchers ?? [];
+
     return res.status(rcResponse.status).send(rcResponse);
   } catch (error) {
     return throwError(res);
@@ -312,7 +314,7 @@ export const settingResetPassword = async (req: Request, res: Response) => {
   try {
     const rcResponse = new ApiResponse();
     const userId = getUserIdFromToken(req);
-    const { newPassword } = req.body;
+    const { newPassword, oldPassword } = req.body;
 
     const pipeline: any[] = [
       { $match: { _id: new Types.ObjectId(userId) } },
@@ -320,6 +322,15 @@ export const settingResetPassword = async (req: Request, res: Response) => {
     ];
 
     const currentUser = (await User.aggregate(pipeline)) as any;
+
+    const isOldPasswordSame = await bcryptjs.compare(
+      oldPassword,
+      currentUser[0].password
+    )
+
+    if (!isOldPasswordSame) {
+      return throwError(res, "The current password you entered is incorrect", 400);
+    }
 
     const isBothPasswordSame = await bcryptjs.compare(
       newPassword,
