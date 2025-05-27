@@ -32,6 +32,11 @@ export const feedbackEvent = async (req: Request, res: Response): Promise<void> 
       if(!userId){
         res.status(rcResponse.status).json({message:'User not found.'})
       }
+      const existingFeedback = await Feedback.findOne({eventId,userId});
+      if(existingFeedback){
+        res.status(rcResponse.status).json({message:"Feedback already submitted for this event."})
+        return
+      }
       const user = await User.findById(userId);
       const name = user.name;
       const email = user.email;    
