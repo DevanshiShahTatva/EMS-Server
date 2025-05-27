@@ -14,7 +14,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "nodemon src/server.ts",
-    "build": "tsc",
+    "build": "npm install && tsc && copyfiles -u 1 src/emails/**/* dist/src/emails",
     "start": "node dist/server.js",
     "migrate": "ts-node src/helper/migrations/run-migration.ts"
   },
@@ -30,6 +30,7 @@
     "@types/node": "^22.14.0",
     "@types/nodemailer": "^6.4.17",
     "@types/npm": "~7.19.3",
+    "copyfiles": "^2.4.1",
     "dotenv": "^16.4.7",
     "eslint": "^9.23.0",
     "express": "^5.1.0",
