@@ -56,16 +56,12 @@ export const sendOtpToEmail = async (
   name: string
 ) => {
   try {
-    const emailOtpTemplatePath = path.join(
-      __dirname, 
-      "../emails/otp-verification-email-template.html"
+    const emailTemplate = fs.readFileSync(
+      path.join(__dirname, "../emails/otp-verification-email-template.html"),
+      "utf-8"
     );
 
-    console.log("DATA:", emailOtpTemplatePath);
-
-    const emailOtpTemplate = fs.readFileSync(emailOtpTemplatePath, "utf-8");
-
-    const customizedHtml = emailOtpTemplate
+    const customizedHtml = emailTemplate
       .replace("[Recipient Name]", name)
       .replace("[(OTP)]", String(otp))
       .replace("[home page link]", `${process.env.CLIENT_URL1}`);
