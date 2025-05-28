@@ -1151,7 +1151,7 @@ export const getEventOverviewFeedback = async (req: Request, res: Response) => {
       totalFeedbacks: statsMap[event._id.toString()]?.totalFeedbacks || 0,
       averageRating: statsMap[event._id.toString()]?.averageRating || 0
     }));
-
+    result.sort((a,b)=>b.averageRating - a.averageRating);
     rcResponse.data = result;
     return res.status(200).json(rcResponse);
   } catch (error) {
