@@ -61,8 +61,6 @@ export const sendOtpToEmail = async (
       "../emails/otp-verification-email-template.html"
     );
 
-    console.log("DATA:", emailOtpTemplatePath);
-
     const emailOtpTemplate = fs.readFileSync(emailOtpTemplatePath, "utf-8");
 
     const customizedHtml = emailOtpTemplate
