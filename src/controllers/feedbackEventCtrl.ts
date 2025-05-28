@@ -40,17 +40,11 @@ export const feedbackEvent = async (req: Request, res: Response): Promise<void> 
       }
       //Checking if user has attended the event
       const attendedEvent = await TicketBook.findOne({event:eventId,user:userId,isAttended:true});
-      console.log("attedned event",attendedEvent);
       if(!attendedEvent){
         res.status(rcResponse.status).json({message:"You can only give feedback after attending the event."})
         return;
       }
       const user = await User.findById(userId);
-      const name = user.name;
-      const email = user.email;    
-      const profileimage = user.profileimage ? user.profileimage.url : null;
-      const eventTitle = event.title;
-      const eventImage = event.images[0].url;
       const feedback = await Feedback.create({
         rating,
         description,
@@ -64,7 +58,6 @@ export const feedbackEvent = async (req: Request, res: Response): Promise<void> 
       }
       res.status(rcResponse.status).send(rcResponse);
     } catch (error) {
-      console.log(res,error);
       return throwError(res);
     }
   }
