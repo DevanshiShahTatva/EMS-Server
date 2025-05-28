@@ -30,8 +30,6 @@ interface IEvent extends Document {
   likesCount: Number;
   isLiked: Boolean;
   numberOfPoint: number;
-  averageRating:number;
-  totalRatings:number;
 }
 
 const TicketSchema = new Schema<ITicket>({
@@ -139,8 +137,6 @@ const EventSchema = new Schema<IEvent>(
     isLiked: { type: Boolean, default: false },
     likesCount: { type: Number, default: 0 },
     numberOfPoint: { type: Number, default: 0 },
-    averageRating:{ type:Number, default:0},
-    totalRatings:{ type:Number, default:0},
   },
   {
     timestamps: true,
