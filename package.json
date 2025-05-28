@@ -12,9 +12,10 @@
   "type": "commonjs",
   "main": "dist/server.js",
   "scripts": {
+    "postinstall": "npm install @types/node --no-save",
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "nodemon src/server.ts",
-    "build": "npm install && tsc && copyfiles -u 1 src/emails/** dist/emails",
+    "build": "npm install @types/node && tsc && cpx \"src/emails/**/*\" dist/emails",
     "start": "node dist/server.js",
     "migrate": "ts-node src/helper/migrations/run-migration.ts"
   },
@@ -27,9 +28,10 @@
     "@types/express": "^5.0.1",
     "@types/jsonwebtoken": "^9.0.9",
     "@types/multer": "^1.4.12",
-    "@types/node": "^22.14.0",
+    "@types/node": "^22.15.14",
     "@types/nodemailer": "^6.4.17",
     "@types/npm": "~7.19.3",
+    "cpx": "1.5.0",
     "copyfiles": "^2.4.1",
     "dotenv": "^16.4.7",
     "eslint": "^9.23.0",
@@ -40,7 +42,7 @@
     "npm": "^11.3.0",
     "prettier": "^3.5.3",
     "ts-node": "^10.9.2",
-    "typescript": "^5.8.2"
+    "typescript": "^5.8.3"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
