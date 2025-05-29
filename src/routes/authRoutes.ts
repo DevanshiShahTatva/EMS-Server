@@ -11,6 +11,7 @@ import {
   settingResetEmail,
   settingVerifyEmail,
   getAllUsers,
+  bulkUsersUpload,
 } from "../controllers/authUserCtrl";
 import { validateAdminToken, validateToken } from "../middlewares/checkToken";
 import multer from "multer";
@@ -38,5 +39,8 @@ authRoutes.put("/verify_setting_email", validateToken, settingVerifyEmail);
 
 // ADMIN ONLY
 authRoutes.get("/all_users", validateAdminToken, getAllUsers);
+
+// Bulk User Upload
+authRoutes.post("/admin/bulk-uploads", validateAdminToken, upload.single("file"), bulkUsersUpload)
 
 export default authRoutes;
