@@ -59,7 +59,6 @@ export const getEvents = async (req: Request, res: Response) => {
   try {
     const rcResponse = new ApiResponse();
     const userId = getUserIdFromToken(req);
-
     const pipeline: any[] = [
       { $match: {} },
 
@@ -132,7 +131,6 @@ export const getEvents = async (req: Request, res: Response) => {
             : false,
         },
       },
-
       // Step 5: Cleanup fields
       {
         $project: {
@@ -141,7 +139,6 @@ export const getEvents = async (req: Request, res: Response) => {
         },
       },
     ];
-
     const events = await Event.aggregate(pipeline);
     rcResponse.data = events;
     return res.status(rcResponse.status).send(rcResponse);
