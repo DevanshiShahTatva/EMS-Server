@@ -136,7 +136,7 @@ const EventSchema = new Schema<IEvent>(
     },
     isLiked: { type: Boolean, default: false },
     likesCount: { type: Number, default: 0 },
-    numberOfPoint: { type: Number, default: 0 }
+    numberOfPoint: { type: Number, default: 0 },
   },
   {
     timestamps: true,
