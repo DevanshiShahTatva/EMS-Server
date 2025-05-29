@@ -399,6 +399,68 @@ export const bulkUsersUpload = async ( req: Request, res: Response) => {
   }
 }
 
+export const singleUserCreation = async ( req: Request, res: Response) => {
+  try {
+    const rcResponse = new ApiResponse()
+    const { name, email, role } = req.body;
+    const emailRegex =/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    
+    if(!name || !email || !role) return throwError(res,  "All fields are required.", HTTP_STATUS_CODE.BAD_REQUEST)
+
+    if(name.trim() === "") return throwError(res,  "name can not be blank.", HTTP_STATUS_CODE.BAD_REQUEST)
+    if(!["user", "organizer"].includes(role)) return throwError(res,  "Role must be 'user' or 'organizer'.", HTTP_STATUS_CODE.BAD_REQUEST)
+    if(!emailRegex.test(email)) return throwError(res,  "Invalid Email Address", HTTP_STATUS_CODE.BAD_REQUEST)
+
+    const existing = await User.findOne({ email });
+    if (existing) return throwError(res,  "Email already exists", HTTP_STATUS_CODE.BAD_REQUEST);
+
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+      const plainPassword = generateSecurePassword(12);
+      const salt = await bcryptjs.genSalt(10);
+      const hashPassword = await bcryptjs.hash(plainPassword, salt);
+
+      const newUserBody = {
+        name,
+        email,
+        role,
+        password: hashPassword,
+        current_points: 25,
+        total_earned_points: 25,
+        current_badge: "Bronze",
+      };
+
+      const newUser = new User(newUserBody);
+      const savedUser = await newUser.save({ session });
+
+      await PointTransaction.create([{
+        userId: savedUser._id,
+        points: 25,
+        activityType: 'EARN',
+        description: `Welcome bonus points`,
+      }], { session });
+
+      // Send welcome email with plainPassword
+      sendUserCreationEmail(email, name, plainPassword, role)
+
+      await session.commitTransaction();
+      session.endSession();
+      rcResponse.data = savedUser
+    } catch (err) {
+      await session.abortTransaction();
+      session.endSession();
+      throw err;
+    }
+
+  // Return unified response
+    rcResponse.message = "User Created Successfully";
+    return res.status(rcResponse.status).send(rcResponse);
+  } catch (error) {
+    return throwError(res)
+  }
+}
+
 export const userDetails = async (req: Request, res: Response) => {
   try {
     const rcResponse = new ApiResponse();

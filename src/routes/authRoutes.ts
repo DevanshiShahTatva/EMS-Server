@@ -12,6 +12,7 @@ import {
   settingVerifyEmail,
   getAllUsers,
   bulkUsersUpload,
+  singleUserCreation,
 } from "../controllers/authUserCtrl";
 import { validateAdminToken, validateToken } from "../middlewares/checkToken";
 import multer from "multer";
@@ -42,5 +43,8 @@ authRoutes.get("/all_users", validateAdminToken, getAllUsers);
 
 // Bulk User Upload
 authRoutes.post("/admin/bulk-uploads", validateAdminToken, upload.single("file"), bulkUsersUpload)
+
+// Single User Creation
+authRoutes.post("/admin/single-user-creation", validateAdminToken, singleUserCreation)
 
 export default authRoutes;
