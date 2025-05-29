@@ -13,11 +13,26 @@ import { appLogger } from "../helper/logger";
 import User from "../models/signup.model";
 import PointTransaction from "../models/pointTransaction";
 import { CancelCharge } from "../models/cancelCharge.model";
+import Voucher from "../models/voucher.model";
+import { generateUniquePromoCode } from "../helper/generatePromoCode";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-08-16" as any,
   typescript: true,
 });
+
+const badgeVoucherMap: Record<string, { percentage: number, maxDiscount: number, description: string }> = {
+  Silver: {
+    percentage: 25,
+    maxDiscount: 50,
+    description: "25% upto ₹50 discount (One time voucher)",
+  },
+  Gold: {
+    percentage: 50,
+    maxDiscount: 100,
+    description: "50% upto ₹100 discount (One time voucher)",
+  },
+};
 
 export const postTicketBook = async (req: Request, res: any) => {
   const session = await mongoose.startSession();
@@ -25,7 +40,7 @@ export const postTicketBook = async (req: Request, res: any) => {
     session.startTransaction();
 
     const rcResponse = new ApiResponse();
-    const { eventId, ticketId, seats, totalAmount, paymentId, usedPoints } =
+    const { eventId, ticketId, seats, totalAmount, discount, paymentId, usedPoints, voucherId } =
       req.body;
 
     // find user from token
@@ -65,7 +80,10 @@ export const postTicketBook = async (req: Request, res: any) => {
       );
     }
 
-    if (selectedTicket.totalBookedSeats + seats > selectedTicket.totalSeats) {
+    if (
+      selectedTicket.totalBookedSeats + Number(seats) >
+      selectedTicket.totalSeats
+    ) {
       return throwError(
         res,
         "Not enough available seats",
@@ -102,26 +120,50 @@ export const postTicketBook = async (req: Request, res: any) => {
           seats,
           totalAmount,
           paymentId,
+          discount: discount || 0,
         },
       ],
       { session }
     );
 
+    const userId = await getUserIdFromToken(req);
     if (usedPoints) {
-      const userId = await getUserIdFromToken(req);
+      const user = await User.findById(userId).session(session);
+      if (!user) throw new Error("User not found");
 
-      await User.findById(userId).then((user) => {
-        const newPoints = Math.max(0, user.current_points - usedPoints);
-        return User.findByIdAndUpdate(userId, { current_points: newPoints });
-      });
+      const newPoints = Math.max(0, user.current_points - usedPoints);
+      await User.findByIdAndUpdate(
+        userId,
+        { current_points: newPoints },
+        { session }
+      );
 
-      await PointTransaction.create({
-        userId: userId,
-        points: usedPoints,
-        activityType: "REDEEM",
-        description: `Used in ${event.title} event`,
-      });
+      await PointTransaction.create(
+        [
+          {
+            userId: userId,
+            points: usedPoints,
+            activityType: "REDEEM",
+            description: `Used in ${event.title} event`,
+          },
+        ],
+        { session }
+      );
+    } else if (voucherId) {
+      const voucher = await Voucher.findOne({ _id: voucherId });
+      if (!voucher) throw new Error("Voucher not found");
+
+      if (voucher.appliedBy?.toString() !== userId.toString()) {
+        throw new Error("You are not allowed to mark this voucher as used");
+      }
+
+      if (voucher.used) {
+        throw new Error("Voucher already used");
+      }
+      voucher.used = true;
+      await voucher.save({ session });
     }
+
     await session.commitTransaction();
     session.endSession();
 
@@ -150,7 +192,6 @@ export const postTicketBook = async (req: Request, res: any) => {
         console.error("Failed to send booking email:", emailError);
       }
     }
-
     rcResponse.data = booking;
     rcResponse.message = "Ticket booked successfully.";
     return res.status(rcResponse.status).send(rcResponse);
@@ -224,7 +265,8 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
     );
     const paymentId = paymentSession.payment_intent as string;
 
-    if (!paymentId) {
+    if (!paymentId && !Boolean(booking.totalAmount == 0)) {
+      await session.abortTransaction();
       return throwError(
         res,
         "No valid PaymentIntent found for this Checkout Session",
@@ -250,6 +292,7 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
 
     // 6. Save changes and delete booking
     await event.save({ session });
+
     await TicketBook.findByIdAndUpdate(
       { _id: bookingId },
       { bookingStatus: "cancelled", cancelledAt: new Date() }
@@ -257,13 +300,24 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
 
     const getCharges = await CancelCharge.findOne();
 
-    const refundAmount = (getCharges.charge / 100) * booking.totalAmount;
+    const charge = (getCharges.charge / 100) * booking.totalAmount;
+    const refundAmount =  Math.trunc(booking.totalAmount - charge);
 
     // 7. No refund if pay amount is 0
-    if (booking.totalAmount === 0 || refundAmount < 20) {
+    if (booking.totalAmount === 0) {
+      await TicketBook.findByIdAndUpdate(
+        bookingId,
+        {
+          bookingStatus: "cancelled",
+          cancelledAt: new Date(),
+          totalAmount: 0,
+        },
+        { session }
+      );
+
       rcResponse.message = "Booking cancelled successfully";
       rcResponse.data = {
-        amount: booking.totalAmount,
+        amount: 0,
         eventTitle: event.title,
         cancelledAt: new Date(),
       };
@@ -274,6 +328,17 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
         reason: "requested_by_customer",
       });
 
+      // Update booking with cancelled status and adjusted refund
+      await TicketBook.findByIdAndUpdate(
+        bookingId,
+        {
+          bookingStatus: "cancelled",
+          cancelledAt: new Date(),
+          totalAmount: charge,
+        },
+        { session }
+      );
+
       rcResponse.message = "Booking cancelled and refund processed";
       rcResponse.data = {
         refundId: refund.id,
@@ -282,21 +347,23 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
         cancelledAt: new Date(),
       };
 
-      cancelEventTicketMail(
+      await cancelEventTicketMail(
         booking.user.email,
         booking.user.name,
         booking.event.title,
         booking.ticket,
-        booking.totalAmount
+        String(refund.amount)
       );
     }
 
     await session.commitTransaction();
-
     res.status(rcResponse.status).send(rcResponse);
   } catch (error) {
     console.log("Error::", error);
+    await session.abortTransaction();
     return throwError(res);
+  } finally {
+    session.endSession(); // Critical cleanup
   }
 };
 
@@ -325,6 +392,15 @@ export const validateTicket = async (req: Request, res: Response) => {
       return throwError(res, "Ticket not found", HTTP_STATUS_CODE.NOT_FOUND);
     }
 
+    // Check is ticket is cancelled or not
+    if (ticket.bookingStatus === "cancelled") {
+      return throwError(
+        res,
+        "This ticket has been cancelled",
+        HTTP_STATUS_CODE.BAD_REQUEST
+      );
+    }
+
     // Check if already marked as attended
     if (ticket.isAttended) {
       await session.abortTransaction();
@@ -334,8 +410,10 @@ export const validateTicket = async (req: Request, res: Response) => {
         message: "This ticket has already been used to attend the event.",
       });
     }
-    // Ensure event is populated and not expired
+    
     const currentTime = new Date();
+
+    // Ensure event is populated and not expired
     if (!ticket.event || new Date(ticket.event.endDateTime) < currentTime) {
       await session.abortTransaction();
       session.endSession();
@@ -345,55 +423,96 @@ export const validateTicket = async (req: Request, res: Response) => {
       });
     }
 
+    // Check if current time is within 2 hours of the event's start time
+    const eventStartTime = new Date(ticket.event.startDateTime);
+    const twoHoursBeforeStart = new Date(eventStartTime.getTime() - 2 * 60 * 60 * 1000);
+
+    if (currentTime < twoHoursBeforeStart) {
+      await session.abortTransaction();
+      session.endSession();
+      return throwError(
+        res,
+        "Entry is only allowed within 2 hours before the event start time.",
+        HTTP_STATUS_CODE.BAD_REQUEST
+      );
+    }
+
     // Mark the ticket as validated
     ticket.isAttended = true;
     await ticket.save();
 
     const userId = ticket.user._id;
-    const pointsToAdd = ticket.event.numberOfPoint ?? 0;
+    const eventId = ticket.event._id;
+    const isTransactionExist = await PointTransaction.findOne({
+      userId: userId,
+      eventId: eventId,
+      activityType: "EARN",
+    });
+    if (!isTransactionExist) {
+      const pointsToAdd = ticket.event.numberOfPoint ?? 0;
 
-    const updatedUser = await User.findByIdAndUpdate(
-      userId,
-      {
-        $inc: {
-          current_points: pointsToAdd,
-          total_earned_points: pointsToAdd,
+      const updatedUser = await User.findByIdAndUpdate(
+        userId,
+        {
+          $inc: {
+            current_points: pointsToAdd,
+            total_earned_points: pointsToAdd,
+          },
         },
-      },
-      { new: true, session }
-    );
-    const attendedCount = await TicketBook.countDocuments({
-      user: userId,
-      isAttended: true,
-    }).session(session);
+        { new: true, session }
+      );
+      const attendedCount = await TicketBook.countDocuments({
+        user: userId,
+        isAttended: true,
+      }).session(session);
 
-    let newBadge = 'Bronze';
-    if (updatedUser.total_earned_points >= 2000 || attendedCount >= 10) {
-      newBadge = 'Gold';
-    } else if (updatedUser.total_earned_points >= 1000) {
-      newBadge = 'Silver';
-    }
+      let newBadge = "Bronze";
+      if (updatedUser.total_earned_points >= 2000 || attendedCount >= 10) {
+        newBadge = "Gold";
+      } else if (updatedUser.total_earned_points >= 1000) {
+        newBadge = "Silver";
+      }
 
-    if (updatedUser.current_badge !== newBadge) {
-      await User.updateOne(
-        { _id: userId },
-        { current_badge: newBadge },
+      if (updatedUser.current_badge !== newBadge) {
+        await User.updateOne(
+          { _id: userId },
+          { current_badge: newBadge },
+          { session }
+        );
+        if (badgeVoucherMap[newBadge]) {
+          const { percentage, maxDiscount, description } = badgeVoucherMap[newBadge];
+          const promoCode = await generateUniquePromoCode();
+          const expireTime = new Date();
+          expireTime.setMonth(expireTime.getMonth() + 1);
+
+          await Voucher.create(
+            [{
+              userId,
+              promoCode,
+              expireTime,
+              percentage,
+              maxDiscount,
+              used: false,
+              description,
+            }],
+            { session }
+          );
+        }
+      }
+
+      await PointTransaction.create(
+        [
+          {
+            userId: userId,
+            eventId: eventId,
+            points: pointsToAdd,
+            activityType: "EARN",
+            description: `Attended ${ticket.event.title} event`,
+          },
+        ],
         { session }
       );
     }
-
-    await PointTransaction.create(
-      [
-        {
-          userId: userId,
-          points: pointsToAdd,
-          activityType: "EARN",
-          description: `Attended ${ticket.event.title} event`,
-        },
-      ],
-      { session }
-    );
-
     await session.commitTransaction();
     session.endSession();
 

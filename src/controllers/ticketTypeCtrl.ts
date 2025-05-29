@@ -4,15 +4,20 @@ import { appLogger } from '../helper/logger';
 import { throwError } from '../helper/common';
 import { HTTP_STATUS_CODE } from '../utilits/enum';
 import mongoose from 'mongoose';
+import Event from '../models/event.model';
 
 export const getAllTicketTypes = async (_req: Request, res: Response) => {
     const log = appLogger.child({ method: 'getAllTicketTypes' });
 
     try {
         const ticketTypes = await TicketType.find().sort({ createdAt: -1 });
+        const ticketTypesWithIsUsed = await Promise.all(ticketTypes.map(async (ticketType) => {
+            const eventCount = await Event.countDocuments({ 'tickets.type': ticketType._id });
+            return { ...ticketType.toObject(), isUsed: eventCount > 0 };
+        }));
         res.status(HTTP_STATUS_CODE.OK).json({
             success: true,
-            data: ticketTypes,
+            data: ticketTypesWithIsUsed,
             message: 'Ticket types retrieved successfully'
         });
     } catch (error) {
@@ -143,6 +148,18 @@ export const deleteTicketType = async (req: Request, res: Response) => {
             return res.status(HTTP_STATUS_CODE.NOT_FOUND).json({
                 success: false,
                 message: `Invalid Record Id: ${req.params.id}`
+            });
+        }
+
+        const eventUsingTicketTypeList = await Event.find({
+            'tickets.type': req.params.id
+        }).sort({ endDateTime: -1 });
+
+        if (eventUsingTicketTypeList.length > 0) {
+            return res.status(HTTP_STATUS_CODE.BAD_REQUEST).json({
+                success: false,
+                data: eventUsingTicketTypeList,
+                message: `Cannot delete ticket type as it is being used by one or more events"`
             });
         }
 

@@ -12,6 +12,7 @@ import {
 import { HTTP_STATUS_CODE, MONTH_NAMES } from "../utilits/enum";
 import User from "../models/signup.model";
 import mongoose from "mongoose";
+import Feedback from "../models/feedback.model";
 
 export const dashboardOverview = async (req: Request, res: Response) => {
   try {
@@ -56,7 +57,9 @@ export const dashboardOverview = async (req: Request, res: Response) => {
 export const topLikedEvents = async (req: Request, res: Response) => {
   try {
     const rcResponse = new ApiResponse();
-    let limit;
+    let limit: number | undefined; // No default limit
+
+    // Parse limit only if provided in the query
     if (req.query?.limit) {
       const parsedLimit = parseInt(req.query.limit as string);
       if (!isNaN(parsedLimit) && parsedLimit > 0) {
@@ -64,22 +67,46 @@ export const topLikedEvents = async (req: Request, res: Response) => {
       }
     }
 
-    const pipeline: any[] = [
+    let pipeline: any[] = [
+      // Calculate likesCount for all events
       { $addFields: { likesCount: { $size: { $ifNull: ["$likes", []] } } } },
     ];
 
-    pipeline.push({ $sort: { likesCount: -1 } });
-
+    // Conditional logic based on limit
     if (limit) {
-      pipeline.push({ $limit: limit });
+      // When limit is provided: filter, sort, and limit
+      pipeline.push(
+        { $match: { likesCount: { $gt: 0 } } }, // Exclude 0 likes
+        { $sort: { likesCount: -1 } },
+        { $limit: limit }
+      );
+    } else {
+      // When no limit: sort all events (including 0 likes)
+      pipeline.push({ $sort: { likesCount: -1 } });
     }
 
-    pipeline.push({ $project: { title: 1, likesCount: 1, category: 1 } });
+    // Common stages for both cases
+    pipeline.push(
+      // Include necessary fields
+      { $project: { title: 1, likesCount: 1, category: 1 } },
+      // Populate category
+      {
+        $lookup: {
+          from: "ticketcategories",
+          localField: "category",
+          foreignField: "_id",
+          as: "category",
+        },
+      },
+      // Convert category array to object
+      { $unwind: "$category" }
+    );
 
     const events = await Event.aggregate(pipeline);
     rcResponse.data = events;
     res.status(rcResponse.status).send(rcResponse);
   } catch (err) {
+    console.log("error::", err);
     return throwError(res);
   }
 };
@@ -221,8 +248,24 @@ export const totalBookingValue = async (
         },
       },
       {
+        $lookup: {
+          from: "ticketcategories", // Match your collection name exactly
+          localField: "_id",
+          foreignField: "_id",
+          as: "categoryDetails",
+        },
+      },
+      { $unwind: { path: "$categoryDetails", preserveNullAndEmptyArrays: true } },
+      {
         $project: {
-          category: "$_id",
+          category: {
+            $cond: [
+              { $ifNull: ["$categoryDetails.name", false] },
+              "$categoryDetails.name",
+              "Uncategorized"
+            ]
+          },
+          categoryId: { $toString: "$_id" },
           totalValue: 1,
           totalBookings: 1,
           _id: 0,
@@ -233,24 +276,24 @@ export const totalBookingValue = async (
 
     const data = await TicketBook.aggregate(pipeline);
 
-    // Format response
     const response = {
       period,
       currentReference,
       startDate: startDate.toISOString(),
       endDate: endDate.toISOString(),
       data: data.map((item) => ({
-        category: item.category || "Uncategorized",
+        category: item.category,
+        // categoryId: item.categoryId,
         totalValue: item.totalValue,
         bookings: item.totalBookings,
       })),
-      navigation:
-        period === "overall" ? null : getNavigation(period, currentReference),
+      navigation: period === "overall" ? null : getNavigation(period, currentReference),
     };
 
     rcResponse.data = response;
     res.status(rcResponse.status).send(rcResponse);
   } catch (err) {
+    console.error("Error in totalBookingValue:", err);
     return throwError(res);
   }
 };
@@ -346,75 +389,99 @@ export const bookingsByTicketType = async (_req: Request, res: Response) => {
     const rcResponse = new ApiResponse();
 
     const pipeline: any[] = [
+      // First get all ticket bookings grouped by ticket ID
       {
         $group: {
           _id: "$ticket",
-          totalBookings: { $sum: "$seats" },
-        },
+          totalBookings: { $sum: "$seats" }
+        }
       },
+      // Lookup ticket details from events
       {
         $lookup: {
           from: "events",
           let: { ticketId: "$_id" },
           pipeline: [
             { $unwind: "$tickets" },
-            {
-              $match: {
-                $expr: {
-                  $eq: [{ $toString: "$tickets._id" }, "$$ticketId"],
-                },
-              },
+            { 
+              $match: { 
+                $expr: { 
+                  $eq: ["$tickets._id", { $toObjectId: "$$ticketId" }] 
+                } 
+              } 
             },
-            {
-              $project: {
-                type: "$tickets.type",
+            { 
+              $project: { 
+                ticketTypeId: "$tickets.type",  // Ensure we're using the correct field
                 totalSeats: "$tickets.totalSeats",
-                totalBooked: "$tickets.totalBookedSeats",
-              },
-            },
+                totalBooked: "$tickets.totalBookedSeats"
+              } 
+            }
           ],
-          as: "ticketInfo",
-        },
+          as: "ticketInfo"
+        }
       },
       { $unwind: "$ticketInfo" },
+      // Lookup ticket type name
+      {
+        $lookup: {
+          from: "tickettypes",
+          localField: "ticketInfo.ticketTypeId",
+          foreignField: "_id",
+          as: "typeDetails"
+        }
+      },
+      { $unwind: { path: "$typeDetails", preserveNullAndEmptyArrays: true } },
+      // Now group by ticket type name to consolidate
+      {
+        $group: {
+          _id: "$typeDetails.name",
+          totalBookings: { $sum: "$totalBookings" },
+          totalSeats: { $sum: "$ticketInfo.totalSeats" },
+          totalBooked: { $sum: "$ticketInfo.totalBooked" },
+          // Calculate available seats from the summed values
+          seatsAvailable: { 
+            $sum: { 
+              $subtract: ["$ticketInfo.totalSeats", "$ticketInfo.totalBooked"] 
+            } 
+          }
+        }
+      },
+      // Calculate percentage after consolidation
       {
         $addFields: {
-          seatsAvailable: {
-            $subtract: ["$ticketInfo.totalSeats", "$ticketInfo.totalBooked"],
-          },
           bookingPercentage: {
-            $round: [
+            $cond: [
+              { $eq: ["$totalSeats", 0] },
+              0,
               {
-                $multiply: [
-                  {
-                    $divide: [
-                      "$ticketInfo.totalBooked",
-                      "$ticketInfo.totalSeats",
-                    ],
-                  },
-                  100,
-                ],
-              },
-              2,
-            ],
-          },
-        },
+                $round: [
+                  { $multiply: [{ $divide: ["$totalBooked", "$totalSeats"] }, 100] },
+                  2
+                ]
+              }
+            ]
+          }
+        }
       },
+      // Final projection
       {
         $project: {
-          ticketType: "$ticketInfo.type",
+          ticketType: "$_id",
           totalBookings: 1,
-          totalSeats: "$ticketInfo.totalSeats",
+          totalSeats: 1,
           seatsAvailable: 1,
           bookingPercentage: 1,
-        },
+          _id: 0
+        }
       },
-      { $sort: { totalBookings: -1 } },
+      { $sort: { totalBookings: -1 } }
     ];
 
     rcResponse.data = await TicketBook.aggregate(pipeline);
     res.status(rcResponse.status).send(rcResponse);
   } catch (err) {
+    console.error("Error in bookingsByTicketType:", err);
     return throwError(res);
   }
 };
@@ -648,7 +715,10 @@ export const getCancellationRate = async (req: Request, res: Response) => {
     ];
 
     if (limit) {
-      pipeline.push({ $limit: parseInt(limit as string) });
+      pipeline.push(
+        { $match: { cancelledUsers: { $gt: 0 } } },
+        { $limit: parseInt(limit as string) }
+      );
     };
 
     // Run the aggregation
@@ -793,3 +863,358 @@ export const userBadgeInfo = async (req: Request, res: Response) => {
     return throwError(err);
   }
 }
+
+export const getEventFeedbackAnalytics = async (
+  req: Request<{}, {}, {}, { period: PeriodType; reference: string }>,
+  res: Response
+) => {
+  try {
+    const rcResponse = new ApiResponse();
+    const period = req.query.period || "yearly";
+    const reference = req.query.reference;
+
+    let startDate, endDate, currentReference;
+
+    if (period === "overall") {
+      startDate = new Date(0);
+      endDate = new Date();
+      currentReference = "overall";
+    } else {
+      ({ startDate, endDate, currentReference } = getDateRange(period, reference));
+    }
+
+    const pipeline: any[] = [
+      {
+        $match: {
+          createdAt: {
+            $gte: startDate,
+            $lte: endDate,
+          },
+        },
+      },
+      {
+        $group: {
+          _id: "$eventId",
+          totalFeedbacks: { $sum: 1 },
+          averageRating: { $avg: "$rating" },
+          ratingsCount: {
+            $push: "$rating",
+          },
+          eventTitle: { $first: "$eventTitle" },
+          eventImage: { $first: "$eventImage" },
+        },
+      },
+      {
+        $addFields: {
+          ratingsBreakdown: {
+            $arrayToObject: {
+              $map: {
+                input: [1, 2, 3, 4, 5],
+                as: "star",
+                in: {
+                  k: { $toString: "$$star" },
+                  v: {
+                    $size: {
+                      $filter: {
+                        input: "$ratingsCount",
+                        as: "rating",
+                        cond: { $eq: ["$$rating", "$$star"] },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          eventId: "$_id",
+          eventTitle: 1,
+          eventImage: 1,
+          averageRating: { $round: ["$averageRating", 1] },
+          totalFeedbacks: 1,
+          ratingsBreakdown: 1,
+        },
+      },
+    ];
+
+    const data = await Feedback.aggregate(pipeline);
+
+    rcResponse.data = {
+      period,
+      currentReference,
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+      data,
+    };
+    return res.status(200).send(rcResponse);
+  } catch (err) {
+    console.error("Error in getEventFeedbackAnalytics:", err);
+    return throwError(res);
+  }
+};
+
+export const getEventFeedbackDistribution = async (
+  req: Request<{ eventId: string }, {}, {}, { period?: PeriodType; reference?: string }>,
+  res: Response
+) => {
+  try {
+    const rcResponse = new ApiResponse();
+    const { eventId } = req.params;
+    const period = req.query.period || "overall";
+    const reference = req.query.reference;
+
+    let startDate: Date, endDate: Date, currentReference: string;
+
+    if (period === "overall") {
+      startDate = new Date(0); 
+      endDate = new Date();   
+      currentReference = "overall";
+    } else {
+      ({ startDate, endDate, currentReference } = getDateRange(period, reference!));
+    }
+
+    const distribution = await Feedback.aggregate([
+      {
+        $match: {
+          eventId: new mongoose.Types.ObjectId(eventId),
+          createdAt: {
+            $gte: startDate,
+            $lte: endDate,
+          },
+        },
+      },
+      {
+        $group: {
+          _id: "$rating",
+          count: { $sum: 1 },
+        },
+      },
+      {
+        $sort: { _id: 1 },
+      },
+    ]);
+
+    const fullDistribution = [1, 2, 3, 4, 5].map((star) => ({
+      rating: star,
+      count: distribution.find((d) => d._id === star)?.count || 0,
+    }));
+
+    rcResponse.data = {
+      eventId,
+      period,
+      currentReference,
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+      ratings: fullDistribution,
+    };
+
+    res.status(200).json(rcResponse);
+  } catch (error) {
+    console.error("Error in getEventFeedbackDistribution:", error);
+    return throwError(res);
+  }
+};
+
+
+export const getFeedbackOverviewRatings = async (
+  req: Request<{}, {}, {}, { period?: PeriodType; reference?: string }>,
+  res: Response
+) => {
+  try {
+    const rcResponse = new ApiResponse();
+    const period = req.query.period || 'yearly';
+    const reference = req.query.reference;
+
+    const { startDate, endDate, groupFormat, currentReference } = getDateRange(period, reference!);
+
+    const previousReference =
+      period === 'yearly'
+        ? (parseInt(currentReference) - 1).toString()
+        : (() => {
+            const [y, m] = currentReference.split('-').map(Number);
+            const prevDate = new Date(y, m - 2); 
+            return `${prevDate.getFullYear()}-${(prevDate.getMonth() + 1).toString().padStart(2, '0')}`;
+          })();
+
+    const { startDate: prevStart, endDate: prevEnd } = getDateRange(period, previousReference);
+
+    const currentPeriodData = await Feedback.aggregate([
+      {
+        $match: {
+          createdAt: {
+            $gte: startDate,
+            $lte: endDate,
+          },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            $dateToString: { format: groupFormat, date: '$createdAt' },
+          },
+          count: { $sum: 1 },
+          averageRating: { $avg: '$rating' },
+        },
+      },
+      {
+        $sort: { _id: 1 },
+      },
+    ]);
+
+    const currentTotal = currentPeriodData.reduce((sum, d) => sum + d.count, 0);
+    const currentAvgRating =
+      currentPeriodData.length > 0
+        ? currentPeriodData.reduce((sum, d) => sum + d.averageRating * d.count, 0) / currentTotal
+        : 0;
+
+    const previousTotalData = await Feedback.aggregate([
+      {
+        $match: {
+          createdAt: {
+            $gte: prevStart,
+            $lte: prevEnd,
+          },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const previousTotal = previousTotalData?.[0]?.count || 0;
+    const growth =
+      previousTotal === 0 ? null : ((currentTotal - previousTotal) / previousTotal) * 100;
+
+    rcResponse.data = {
+      period,
+      currentReference,
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+      totalFeedbacks: currentTotal,
+      averageRating: parseFloat(currentAvgRating.toFixed(2)),
+      feedbackGrowthRate: growth !== null ? parseFloat(growth.toFixed(2)) : null,
+      breakdown: currentPeriodData.map((entry) => ({
+        period: entry._id,
+        feedbacks: entry.count,
+        averageRating: parseFloat(entry.averageRating.toFixed(2)),
+      })),
+    };
+
+    return res.status(200).json(rcResponse);
+  } catch (error) {
+    console.error('Error in getFeedbackOverviewRatings:', error);
+    return throwError(res);
+  }
+};
+
+export const getEventOverviewFeedback = async (req: Request, res: Response) => {
+  try {
+    const rcResponse = new ApiResponse();
+
+    const events = await Event.find({}, { _id: 1, title: 1 });
+
+    const eventIds = events.map(event => event._id);
+
+    const feedbackStats = await Feedback.aggregate([
+      {
+        $match: {
+          eventId: { $in: eventIds }
+        }
+      },
+      {
+        $group: {
+          _id: '$eventId',
+          totalFeedbacks: { $sum: 1 },
+          averageRating: { $avg: '$rating' }
+        }
+      }
+    ]);
+
+    const statsMap = feedbackStats.reduce((acc, curr) => {
+      acc[curr._id.toString()] = {
+        totalFeedbacks: curr.totalFeedbacks,
+        averageRating: parseFloat(curr.averageRating.toFixed(2))
+      };
+      return acc;
+    }, {} as Record<string, { totalFeedbacks: number; averageRating: number }>);
+
+    const result = events.map(event => ({
+      eventId: event._id,
+      title: event.title,
+      totalFeedbacks: statsMap[event._id.toString()]?.totalFeedbacks || 0,
+      averageRating: statsMap[event._id.toString()]?.averageRating || 0
+    }));
+    result.sort((a,b)=>b.averageRating - a.averageRating);
+    rcResponse.data = result;
+    return res.status(200).json(rcResponse);
+  } catch (error) {
+    console.error('Error in getEventOverviewFeedback:', error);
+    return throwError(res);
+  }
+};
+
+export const getOverallFeedbackDistribution = async (
+  req: Request<{}, {}, {}, { period?: PeriodType; reference?: string }>,
+  res: Response
+) => {
+  try {
+    const rcResponse = new ApiResponse();
+    const period = req.query.period || 'overall';
+    const reference = req.query.reference;
+
+    let startDate: Date, endDate: Date, currentReference: string;
+
+    if (period === 'overall') {
+      startDate = new Date(0);
+      endDate = new Date();
+      currentReference = 'overall';
+    } else {
+      ({ startDate, endDate, currentReference } = getDateRange(period, reference!));
+    }
+
+    const distribution = await Feedback.aggregate([
+      {
+        $match: {
+          createdAt: {
+            $gte: startDate,
+            $lte: endDate,
+          },
+        },
+      },
+      {
+        $group: {
+          _id: '$rating',
+          count: { $sum: 1 },
+        },
+      },
+      {
+        $sort: { _id: 1 },
+      },
+    ]);
+
+    const fullDistribution = [1, 2, 3, 4, 5].map((star) => ({
+      rating: star,
+      count: distribution.find((d) => d._id === star)?.count || 0,
+    }));
+
+    rcResponse.data = {
+      period,
+      currentReference,
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+      ratings: fullDistribution,
+    };
+
+    return res.status(200).json(rcResponse);
+  } catch (error) {
+    console.error('Error in getOverallFeedbackDistribution:', error);
+    return throwError(res);
+  }
+};

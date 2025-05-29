@@ -15,9 +15,10 @@ import mongoose, { Types } from "mongoose";
 import TicketBook from "../models/eventBooking.model";
 import PointSetting from "../models/pointSetting.model";
 import { appLogger } from "../helper/logger";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export const postEvent = async (req: Request, res: Response) => {
-  const log = appLogger.child({ method: 'postEvent' });
+  const log = appLogger.child({ method: "postEvent" });
   try {
     const rcResponse = new ApiResponse();
     const files = req.files as Express.Multer.File[];
@@ -58,7 +59,6 @@ export const getEvents = async (req: Request, res: Response) => {
   try {
     const rcResponse = new ApiResponse();
     const userId = getUserIdFromToken(req);
-
     const pipeline: any[] = [
       { $match: {} },
 
@@ -123,15 +123,14 @@ export const getEvents = async (req: Request, res: Response) => {
           likesCount: { $size: { $ifNull: ["$likes", []] } },
           isLiked: userId
             ? {
-              $in: [
-                new mongoose.Types.ObjectId(userId),
-                { $ifNull: ["$likes", []] },
-              ],
-            }
+                $in: [
+                  new mongoose.Types.ObjectId(userId),
+                  { $ifNull: ["$likes", []] },
+                ],
+              }
             : false,
         },
       },
-
       // Step 5: Cleanup fields
       {
         $project: {
@@ -140,7 +139,6 @@ export const getEvents = async (req: Request, res: Response) => {
         },
       },
     ];
-
     const events = await Event.aggregate(pipeline);
     rcResponse.data = events;
     return res.status(rcResponse.status).send(rcResponse);
@@ -206,11 +204,8 @@ export const getEventById = async (req: Request, res: Response) => {
           likesCount: { $size: { $ifNull: ["$likes", []] } },
           isLiked: userId
             ? {
-              $in: [
-                new Types.ObjectId(userId),
-                { $ifNull: ["$likes", []] },
-              ],
-            }
+                $in: [new Types.ObjectId(userId), { $ifNull: ["$likes", []] }],
+              }
             : false,
         },
       },
@@ -231,11 +226,11 @@ export const getEventById = async (req: Request, res: Response) => {
     if (!eventResult || eventResult.length === 0) {
       return throwError(res, "Event not found");
     }
-    
+
     rcResponse.data = eventResult[0];
 
     const user = await mongoose.model("User").findById(userId);
-    if(user) {
+    if (user) {
       const settings = await PointSetting.findOne().sort({ updatedAt: -1 });
       rcResponse.data.userPoints = user.current_points;
       rcResponse.data.conversionRate = settings?.conversionRate ?? null;
@@ -292,7 +287,9 @@ export const putEvent = async (req: Request, res: Response) => {
     // 6. Prepare updated data
     const updatedEventData = {
       ...req.body,
-      category: mongoose.isValidObjectId(req.body.category) ? new mongoose.Types.ObjectId(req.body.category) : "",
+      category: mongoose.isValidObjectId(req.body.category)
+        ? new mongoose.Types.ObjectId(req.body.category)
+        : "",
       images: [...imagesToKeep, ...newImages],
     };
 
@@ -313,7 +310,7 @@ export const putEvent = async (req: Request, res: Response) => {
 };
 
 export const deleteEvent = async (req: Request, res: Response) => {
-  const log = appLogger.child({ method: 'deleteEvent' });
+  const log = appLogger.child({ method: "deleteEvent" });
   try {
     const rcResponse = new ApiResponse();
     const eventId = req.params.id;
@@ -345,7 +342,10 @@ export const deleteEvent = async (req: Request, res: Response) => {
             await deleteFromCloudinary(image.imageId);
             // log.info({ imageId: image.imageId }, "Image deleted from Cloudinary");
           } catch (cloudErr) {
-            log.error({ imageId: image.imageId, err: cloudErr }, "Failed to delete image from Cloudinary");
+            log.error(
+              { imageId: image.imageId, err: cloudErr },
+              "Failed to delete image from Cloudinary"
+            );
           }
         })
       );
@@ -370,15 +370,15 @@ export const likeEvent = async (req: Request, res: Response) => {
     const userId = new Types.ObjectId(getUserIdFromToken(req));
 
     // Solution 1: Use native Mongoose methods with proper typing
-    const event = await Event.findById(eventId).select("likes").lean() as any;
+    const event = (await Event.findById(eventId).select("likes").lean()) as any;
 
     if (!event) {
       return throwError(res, "Event not found", HTTP_STATUS_CODE.NOT_FOUND);
     }
 
     // Check if user already liked
-    const hasLiked = event.likes.some((likeId: any) =>
-      likeId.toString() === userId.toString()
+    const hasLiked = event.likes.some(
+      (likeId: any) => likeId.toString() === userId.toString()
     );
 
     // Atomic update operation
@@ -387,28 +387,63 @@ export const likeEvent = async (req: Request, res: Response) => {
       : { $push: { likes: userId } }; // Like
 
     // Perform the update and get the updated document
-    const updatedEvent = await Event.findByIdAndUpdate(
-      eventId,
-      update,
-      {
-        new: true,
-        projection: { likes: 1, __v: 0 } // Only return the likes field
-      }
-    ).lean() as any;
+    const updatedEvent = (await Event.findByIdAndUpdate(eventId, update, {
+      new: true,
+      projection: { likes: 1, __v: 0 }, // Only return the likes field
+    }).lean()) as any;
 
     if (!updatedEvent) {
-      return throwError(res, "Update failed", HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR);
+      return throwError(
+        res,
+        "Update failed",
+        HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR
+      );
     }
 
     rcResponse.data = {
       likesCount: updatedEvent.likes.length,
-      isLiked: !hasLiked
+      isLiked: !hasLiked,
     };
 
     return res.status(rcResponse.status).send(rcResponse);
-
   } catch (err) {
     return throwError(res);
   }
 };
 
+export const generateDescription = async (req: Request, res: Response) => {
+  try {
+
+    const rcResponse = new ApiResponse();
+    const body = req.body;
+
+    const prompt = `Generate a professional event description for:
+      - Title: ${body.title}
+      - Start Date: ${body.start_time}
+      - End Date: ${body.end_time}
+      - Location: ${body.location}
+      
+      Include:
+          - Engaging introduction
+          - Key highlights/activities
+          - Who should attend
+          - Any special features
+          
+          Keep it under 200 words. Use markdown formatting with bold headings.`;
+
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+    const GEN_AI_CONFIG = {
+      model: "gemini-2.0-flash",
+    };
+    const model = genAI.getGenerativeModel(GEN_AI_CONFIG);
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+
+    rcResponse.data = response.text();
+    res.status(rcResponse.status).send(rcResponse);
+  } catch (error) {
+    console.error("Server-side error:", error);
+    throwError(res, "Generation failed");
+  }
+};

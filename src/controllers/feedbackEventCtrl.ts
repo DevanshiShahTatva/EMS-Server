@@ -12,6 +12,7 @@ import Feedback  from "../models/feedback.model";
 import { Types } from "mongoose";
 import User from "../models/signup.model";
 import { HTTP_STATUS_CODE } from "../utilits/enum";
+import TicketBook from "../models/eventBooking.model";
 export const feedbackEvent = async (req: Request, res: Response): Promise<void> => {
     try {
       const rcResponse = new ApiResponse();
@@ -32,16 +33,23 @@ export const feedbackEvent = async (req: Request, res: Response): Promise<void> 
       if(!userId){
         res.status(rcResponse.status).json({message:'User not found.'})
       }
+      const existingFeedback = await Feedback.findOne({eventId,userId});
+      if(existingFeedback){
+        res.status(rcResponse.status).json({message:"Feedback already submitted for this event."})
+        return;
+      }
+      //Checking if user has attended the event
+      const attendedEvent = await TicketBook.findOne({event:eventId,user:userId,isAttended:true});
+      if(!attendedEvent){
+        res.status(rcResponse.status).json({message:"You can only give feedback after attending the event."})
+        return;
+      }
       const user = await User.findById(userId);
-      const name = user.name;
-      const email = user.email;    
       const feedback = await Feedback.create({
-        name,
-        email,
         rating,
         description,
         eventId,
-        userId
+        userId,
       })
       rcResponse.data = {
         success:"success",
@@ -61,11 +69,36 @@ export const getFeedbackByUserId = async (req: Request, res: Response) => {
         if(!userId){
             res.status(rcResponse.status).json({message:'User not found.'})
         }
-        const feedbackResult = await Feedback.find({userId:userId})
+        const feedbackResult = await Feedback.find({userId:userId}).populate({
+          path:'eventId',
+          select:'title images'
+        }).populate({
+          path:'userId',
+          select:'name email profileimage'
+        });
         if (!feedbackResult || feedbackResult.length === 0) {
-        return throwError(res, "No feedbacks found");
+        res.status(rcResponse.status).json({message:'No Feedbacks found.'})
         }
-        rcResponse.data = feedbackResult;
+        const allUserFeedbacks = feedbackResult.map(fb=>({
+          _id:fb._id,
+          rating:fb.rating,
+          description:fb.description,
+          isEdited:fb.isEdited,
+          createdAt:fb.createdAt,
+          updatedAt:fb.updatedAt,
+          event:fb.eventId ? {
+            id:fb.eventId._id,
+            title:fb.eventId.title,
+            image: fb.eventId.images?.[0]?.url || null
+          }:null,
+          user:fb.userId ? {
+            id:fb.userId._id,
+            name:fb.userId.name,
+            email:fb.userId.email,
+            profileimage: fb.userId.profileimage?.url || null
+          }:null
+        }))
+        rcResponse.data = allUserFeedbacks;
         return res.status(rcResponse.status).send(rcResponse);
     } catch (error) {
         return throwError(res);
@@ -81,11 +114,38 @@ export const getFeedbackByEventId = async (req: Request, res: Response) => {
             res.status(rcResponse.status).json({ message: 'Event not found.' })
             return
         }
-        const feedbackResult = await Feedback.find({eventId:eventId})
+        const feedbackResult = await Feedback.find({eventId:eventId}).populate({
+          path:'userId',
+          select:'name email profileimage'
+        })
         if (!feedbackResult || feedbackResult.length === 0) {
-        return throwError(res, "No feedbacks found");
+          res.status(rcResponse.status).json({ message: 'No feedbacks found.' })
+          return
         }
-        rcResponse.data = feedbackResult;
+        const totalFeedbacks = feedbackResult.length;
+        const averageRating = Number(
+          (feedbackResult.reduce((acc,curr)=>acc + curr.rating,0)/totalFeedbacks).toFixed(2)
+        )
+        const allFeedbacks = feedbackResult.map((fb)=>({
+          _id:fb._id,
+          rating:fb.rating,
+          description:fb.description,
+          isEdited:fb.isEdited,
+          createdAt:fb.createdAt,
+          updatedAt:fb.updatedAt,
+          user:fb.userId ? {
+            id:fb.userId._id,
+            name:fb.userId.name,
+            email:fb.userId.email,
+            profileimage:fb.userId.profileimage?.url || null
+          }:null,
+          event:{
+            id:event._id,
+            title:event.title,
+            image:event.images?.[0]?.url || null
+          }
+        }));
+        rcResponse.data = {averageRating,totalFeedbacks,allFeedbacks};
         return res.status(rcResponse.status).send(rcResponse);
     } catch (error) {
         return throwError(res);
