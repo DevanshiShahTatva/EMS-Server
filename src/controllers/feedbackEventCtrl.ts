@@ -124,7 +124,7 @@ export const getFeedbackByEventId = async (req: Request, res: Response) => {
         }
         const totalFeedbacks = feedbackResult.length;
         const averageRating = Number(
-          (feedbackResult.reduce((acc,curr)=>acc + curr.rating,0)/totalFeedbacks).toFixed(2)
+          (feedbackResult.reduce((acc,curr)=>acc + curr.rating,0)/totalFeedbacks).toFixed(1)
         )
         const allFeedbacks = feedbackResult.map((fb)=>({
           _id:fb._id,
