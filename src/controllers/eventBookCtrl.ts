@@ -15,6 +15,7 @@ import PointTransaction from "../models/pointTransaction";
 import { CancelCharge } from "../models/cancelCharge.model";
 import Voucher from "../models/voucher.model";
 import { generateUniquePromoCode } from "../helper/generatePromoCode";
+import GroupChat from "../models/groupChat.model";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-08-16" as any,
@@ -162,6 +163,20 @@ export const postTicketBook = async (req: Request, res: any) => {
       }
       voucher.used = true;
       await voucher.save({ session });
+    }
+
+    let group = await GroupChat.findOne({ event: eventId }).session(session);
+    if (!group) {
+      group = new GroupChat({
+        name: `${event.title}`,
+        event: eventId,
+        members: [userId],
+        admin: userId
+      });
+      await group.save({ session });
+    } else if(!group.members.some((id:any) => id.equals(userId))){
+      group.members.push(userId);
+      await group.save({ session });
     }
 
     await session.commitTransaction();

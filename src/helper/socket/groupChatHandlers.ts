@@ -1,0 +1,110 @@
+import { Server } from 'socket.io';
+import mongoose from 'mongoose';
+import Message from '../../models/message.model';
+import GroupChat from '../../models/groupChat.model';
+import { AuthenticatedSocket } from '.';
+
+interface GroupMessageData {
+  groupId: string;
+  content: string;
+}
+
+export default function groupChatHandlers(io: Server, socket: AuthenticatedSocket) {
+  const joinGroupChat = async ({ groupId }: { groupId: string }) => {
+    if (!socket.userId || !mongoose.Types.ObjectId.isValid(groupId)) {
+      socket.emit('error', 'Invalid user or group ID');
+      return;
+    }
+
+    try {
+      const group = await GroupChat.findOne({
+        _id: groupId,
+        members: socket.userId
+      });
+
+      if (!group) {
+        socket.emit('error', 'Not a member of this group');
+        return;
+      }
+
+      socket.join(groupId);
+
+      const recentMessages = await Message.find({ group: groupId })
+        .sort({ createdAt: -1 })
+        .limit(20)
+        .populate('sender', 'name profileimage')
+        .lean();
+
+      socket.emit('initial_messages', {
+        groupId,
+        messages: recentMessages.reverse()
+      });
+
+    } catch (error) {
+      console.error('Error joining group chat:', error);
+      socket.emit('error', 'Failed to join group chat');
+    }
+  };
+
+  const leaveGroupChat = ({ groupId }: { groupId: string }) => {
+    socket.leave(groupId);
+  };
+
+  const handleGroupMessage = async ({ groupId, content }: GroupMessageData) => {
+    if (!socket.userId || !content.trim()) {
+      socket.emit('error', 'Invalid message data');
+      return;
+    }
+
+    try {
+      const group = await GroupChat.findOne({
+        _id: groupId,
+        members: socket.userId
+      });
+
+      if (!group) {
+        socket.emit('error', 'No longer a group member');
+        return;
+      }
+
+      const message = new Message({
+        sender: socket.userId,
+        group: groupId,
+        content: content.trim(),
+        readBy: [socket.userId]
+      });
+
+      let savedMessage = await message.save();
+      savedMessage = await savedMessage.populate('sender', 'name profileimage');
+
+      await GroupChat.findByIdAndUpdate(groupId, {
+        lastMessage: savedMessage._id
+      });
+
+      io.to(groupId).emit('new_group_message', savedMessage);
+
+    } catch (error) {
+      console.error('Error sending group message:', error);
+      socket.emit('error', 'Failed to send message');
+    }
+  };
+
+  socket.on('join_group_chat', joinGroupChat);
+  socket.on('leave_group_chat', leaveGroupChat);
+  socket.on('group_message', handleGroupMessage);
+
+  const joinUserGroups = async () => {
+    if (!socket.userId) return;
+
+    try {
+      const groups = await GroupChat.find({ members: socket.userId });
+      groups.forEach(group => {
+        socket.join(group._id.toString());
+      });
+    } catch (error) {
+      console.error('Error auto-joining groups:', error);
+    }
+  };
+
+  joinUserGroups();
+}
