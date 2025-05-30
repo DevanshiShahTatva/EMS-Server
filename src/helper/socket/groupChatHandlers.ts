@@ -29,7 +29,7 @@ export default function groupChatHandlers(io: Server, socket: AuthenticatedSocke
 
       socket.join(groupId);
 
-      const recentMessages = await Message.find({ group: groupId })
+      const recentMessages: any = await Message.find({ group: groupId })
         .sort({ createdAt: -1 })
         .limit(20)
         .populate('sender', 'name profileimage')
@@ -46,8 +46,27 @@ export default function groupChatHandlers(io: Server, socket: AuthenticatedSocke
     }
   };
 
-  const leaveGroupChat = ({ groupId }: { groupId: string }) => {
-    socket.leave(groupId);
+  const leaveGroupChat = async ({ groupId }: { groupId: string }) => {
+    try {
+      if (!socket.userId || !mongoose.Types.ObjectId.isValid(groupId)) {
+        throw new Error('Invalid user or group ID');
+      }
+
+      await GroupChat.findByIdAndUpdate(
+        groupId,
+        { $pull: { members: socket.userId } },
+      );
+
+      io.to(groupId).emit('group_member_removed', {
+        groupId,
+        removedMemberId: socket.userId,
+      });
+      socket.leave(groupId);
+    } catch (error) {
+      console.error('Error:', error);
+      socket.emit('error', 'Failed to leave group chat');
+      return;
+    }
   };
 
   const handleGroupMessage = async ({ groupId, content }: GroupMessageData) => {
@@ -102,9 +121,25 @@ export default function groupChatHandlers(io: Server, socket: AuthenticatedSocke
     }
   };
 
+  const typingMessage = ({ groupId }: { groupId: string }) => {
+    socket.to(groupId).emit('user_typing', {
+      groupId,
+      user: socket.userName,
+    });
+  }
+
+  const stopTypingMessage = ({ groupId }: { groupId: string }) => {
+    socket.to(groupId).emit('user_stopped_typing', {
+      groupId,
+      user: socket.userName,
+    });
+  }
+
   socket.on('join_group_chat', joinGroupChat);
-  socket.on('leave_group_chat', leaveGroupChat);
+  socket.on('typing', typingMessage);
+  socket.on('stop_typing', stopTypingMessage);
   socket.on('group_message', handleGroupMessage);
+  socket.on('leave_group_chat', leaveGroupChat);
 
   joinUserGroups();
 }

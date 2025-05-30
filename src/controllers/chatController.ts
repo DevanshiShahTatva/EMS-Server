@@ -9,34 +9,40 @@ export const groupChatList = async (req: Request, res: Response) => {
   try {
     const userId = getUserIdFromToken(req);
     const groups = await GroupChat.find({ members: userId })
-      .populate('event', 'images')
+      .populate('event', 'title images')
       .populate({
         path: 'members',
-        select: 'name profileimage',
+        select: '_id name profileimage',
         model: 'User'
       })
+      .populate({
+        path: 'lastMessage',
+        select: 'content createdAt',
+        populate: {
+          path: 'sender',
+          select: 'name',
+          model: 'User'
+        }
+      })
+      .sort({ updatedAt: -1 })
       .lean();
 
     const groupDataWithLastMessage = await Promise.all(
       groups.map(async (group) => {
-        const lastMessage: any = await Message.findOne({ groupId: group._id })
-          .sort({ createdAt: -1 })
-          .select('content createdAt')
-          .lean();
-
         return {
           id: group._id,
-          name: group.name,
+          name: group.event?.title ?? "",
           members: await Promise.all(
             group.members.map((member: any) => ({
+              id: member._id,
               name: member.name ?? "",
               avatar: member.profileimage?.url ?? null
             }))
           ),
-          icon: group.event?.images?.[0]?.url ?? '',
-          senderId: lastMessage?.sender?._id ?? null,
-          lastMessage: lastMessage?.content ?? null,
-          lastMessageTime: lastMessage?.createdAt ?? null,
+          icon: group.event?.images?.[0]?.url ?? null,
+          lastMessageSender: group.lastMessage?.sender.name ?? null,
+          lastMessage: group.lastMessage?.content ?? null,
+          lastMessageTime: group.lastMessage?.createdAt ?? null,
         };
       })
     );
@@ -52,11 +58,11 @@ export const groupChatList = async (req: Request, res: Response) => {
   }
 };
 
-export const getGroupMessages = async (req: Request, res: Response): Promise<void> => {
+export const getGroupMessages = async (req: Request, res: Response) => {
   try {
     const { groupId } = req.params;
     const userId = getUserIdFromToken(req);
-    const { limit = 50, before } = req.query;
+    const { limit = 20, before } = req.query;
 
     if (!mongoose.Types.ObjectId.isValid(groupId)) {
       res.status(400).json({ error: 'Invalid group ID' });
@@ -78,22 +84,20 @@ export const getGroupMessages = async (req: Request, res: Response): Promise<voi
       query.createdAt = { $lt: new Date(before as string) };
     }
 
-    const messages = await Message.find(query)
+    const messages: any = await Message.find(query)
       .sort({ createdAt: -1 })
       .limit(Number(limit))
-      .populate('sender', 'username avatar')
+      .populate('sender', 'name profileimage')
       .lean();
-
-    const sortedMessages = messages.reverse();
 
     res.status(200).json({
       success: true,
-      data: sortedMessages,
+      data: messages.reverse(),
       hasMore: messages.length === Number(limit)
     });
 
   } catch (error) {
-    console.error('Error fetching group messages:', error);
+    console.error('Error:', error);
     res.status(500).json({ error: 'Failed to fetch messages' });
   }
 };

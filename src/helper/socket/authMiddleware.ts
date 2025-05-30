@@ -8,6 +8,7 @@ export const socketAuth = (socket: AuthenticatedSocket, next: (err?: Error) => v
   try {
     const user = jwt.verify(token, process.env.TOKEN_SECRET!) as any;
     socket.userId = user._id;
+    socket.userName = user.name;
     next();
   } catch (err) {
     console.log("Err:", err);

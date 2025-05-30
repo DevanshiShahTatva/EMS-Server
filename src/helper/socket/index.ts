@@ -5,29 +5,17 @@ import privateChatHandlers from './privateChatHandlers';
 
 export interface AuthenticatedSocket extends Socket {
   userId?: string;
+  userName?: string;
 }
 
 export default function initSocket(io: Server) {
   io.use(socketAuth);
 
   io.on('connection', (socket: AuthenticatedSocket) => {
-    if (socket.userId) {
-      io.emit('user_online_status', {
-        userId: socket.userId,
-        status: 'online'
-      });
-    }
 
     groupChatHandlers(io, socket);
     privateChatHandlers(io, socket);
 
-    socket.on('disconnect', () => {
-      if (socket.userId) {
-        io.emit('user_online_status', {
-          userId: socket.userId,
-          status: 'offline'
-        });
-      }
-    });
+    socket.on('disconnect', () => { });
   });
 }

@@ -169,7 +169,6 @@ export const postTicketBook = async (req: Request, res: any) => {
     let group = await GroupChat.findOne({ event: eventId }).session(session);
     if (!group) {
       group = new GroupChat({
-        name: `${event.title}`,
         event: eventId,
         members: [userId],
         admin: userId
@@ -182,7 +181,7 @@ export const postTicketBook = async (req: Request, res: any) => {
       const newMember = await User.findById(userId)
         .select('name profileimage')
         .lean() as any;
-      io.to(group._id.toString()).emit('group_member_updated', {
+      io.to(group._id.toString()).emit('group_member_added', {
         groupId: group._id.toString(),
         newMember: {
           id: userId,
