@@ -43,7 +43,7 @@ app.use(urlencoded({ extended: true, limit: "50mb" }));
 app.use(cookieParser());
 app.use(cors(corsObj));
 
-const io = new Server(server, {
+export const io = new Server(server, {
   cors: corsObj
 });
 

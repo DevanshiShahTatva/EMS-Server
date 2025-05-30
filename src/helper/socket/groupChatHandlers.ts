@@ -89,10 +89,6 @@ export default function groupChatHandlers(io: Server, socket: AuthenticatedSocke
     }
   };
 
-  socket.on('join_group_chat', joinGroupChat);
-  socket.on('leave_group_chat', leaveGroupChat);
-  socket.on('group_message', handleGroupMessage);
-
   const joinUserGroups = async () => {
     if (!socket.userId) return;
 
@@ -105,6 +101,10 @@ export default function groupChatHandlers(io: Server, socket: AuthenticatedSocke
       console.error('Error auto-joining groups:', error);
     }
   };
+
+  socket.on('join_group_chat', joinGroupChat);
+  socket.on('leave_group_chat', leaveGroupChat);
+  socket.on('group_message', handleGroupMessage);
 
   joinUserGroups();
 }

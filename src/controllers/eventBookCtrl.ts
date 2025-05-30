@@ -16,6 +16,7 @@ import { CancelCharge } from "../models/cancelCharge.model";
 import Voucher from "../models/voucher.model";
 import { generateUniquePromoCode } from "../helper/generatePromoCode";
 import GroupChat from "../models/groupChat.model";
+import { io } from "../server";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-08-16" as any,
@@ -174,9 +175,21 @@ export const postTicketBook = async (req: Request, res: any) => {
         admin: userId
       });
       await group.save({ session });
-    } else if(!group.members.some((id:any) => id.equals(userId))){
+    } else if (!group.members.some((id: any) => id.equals(userId))) {
       group.members.push(userId);
       await group.save({ session });
+
+      const newMember = await User.findById(userId)
+        .select('name profileimage')
+        .lean() as any;
+      io.to(group._id.toString()).emit('group_member_updated', {
+        groupId: group._id.toString(),
+        newMember: {
+          id: userId,
+          name: newMember?.name ?? "",
+          avatar: newMember?.profileimage?.url ?? null
+        }
+      });
     }
 
     await session.commitTransaction();

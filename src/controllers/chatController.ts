@@ -10,6 +10,11 @@ export const groupChatList = async (req: Request, res: Response) => {
     const userId = getUserIdFromToken(req);
     const groups = await GroupChat.find({ members: userId })
       .populate('event', 'images')
+      .populate({
+        path: 'members',
+        select: 'name profileimage',
+        model: 'User'
+      })
       .lean();
 
     const groupDataWithLastMessage = await Promise.all(
@@ -22,6 +27,12 @@ export const groupChatList = async (req: Request, res: Response) => {
         return {
           id: group._id,
           name: group.name,
+          members: await Promise.all(
+            group.members.map((member: any) => ({
+              name: member.name ?? "",
+              avatar: member.profileimage?.url ?? null
+            }))
+          ),
           icon: group.event?.images?.[0]?.url ?? '',
           senderId: lastMessage?.sender?._id ?? null,
           lastMessage: lastMessage?.content ?? null,
