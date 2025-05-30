@@ -329,7 +329,7 @@ export const deleteEvent = async (req: Request, res: Response) => {
       // log.warn({ eventId, bookingCount }, "Cannot delete event with existing bookings");
       return throwError(
         res,
-        "Event can not be deleted due to existing bookings.",
+        "Event cannot be deleted due to existing bookings.",
         HTTP_STATUS_CODE.BAD_REQUEST
       );
     }
@@ -351,13 +351,26 @@ export const deleteEvent = async (req: Request, res: Response) => {
       );
     }
 
+        // Safe feedback deletion
+    if (mongoose.models.Feedback) {
+      try {
+        const deleteResult = await mongoose.model('Feedback').deleteMany({ eventId: eventId });
+        log.info({ eventId, deletedCount: deleteResult.deletedCount }, "Feedback deleted");
+      } catch (feedbackErr) {
+        log.warn(
+          { eventId, err: feedbackErr },
+          "Failed to delete feedbacks (proceeding anyway)"
+        );
+      }
+    }
+
     // log.info({ eventId }, "Deleting event from database");
     rcResponse.data = await deleteOne("Event", { _id: eventId });
     rcResponse.message = "Event deleted successfully.";
 
     // log.info({ eventId }, "Event deleted successfully");
     return res.status(rcResponse.status).send(rcResponse);
-  } catch (err: any) {
+  } catch (err) {
     log.error({ err, eventId: req.params.id }, "Error deleting event");
     return throwError(res);
   }

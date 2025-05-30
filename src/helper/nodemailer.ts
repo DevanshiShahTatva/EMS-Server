@@ -298,3 +298,43 @@ export const cancelEventTicketMail = async (
     console.error("Error while sending welcome email:", error);
   }
 };
+
+
+export const sendUserCreationEmail = async (
+  email: string,
+  name: string,
+  password: string,
+  role: string,
+) => {
+  try {
+    const emailTemplate = fs.readFileSync(
+      path.join(__dirname, "../emails/user-created-email.html"),
+      "utf-8"
+    );
+
+    const customizedHtml = emailTemplate
+      .replace(/\[User's Name\]/g, name)
+      .replace(/\[Email\]/g, email)
+      .replace(/\[Password\]/g, password)
+      .replace(/\[Role\]/g, role)
+      .replace("[login page link]", `${process.env.CLIENT_URL1}/login`);
+
+    const mailOptions = {
+      from: `Evently <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: `Welcome to Evently!`,
+      html: customizedHtml,
+      attachments: [
+        {
+          filename: "main_logo.png",
+          path: path.join(__dirname, "../emails/assets/main_logo.png"),
+          cid: "companyLogo",
+        },
+      ],
+    };
+    await transporter.sendMail(mailOptions);
+  } catch (error) {
+    console.error("Error sending mail:", error);
+    throw error;
+  }
+};
