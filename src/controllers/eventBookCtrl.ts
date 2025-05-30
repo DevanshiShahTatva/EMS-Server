@@ -248,11 +248,11 @@ export const getTicketBooks = async (req: Request, res: any) => {
 export const cancelBookedEvent = async (req: Request, res: Response) => {
   const session = await mongoose.startSession();
   session.startTransaction();
+  const userId = await getUserIdFromToken(req);
 
   try {
     const rcResponse = new ApiResponse();
     const { bookingId } = req.params;
-    const userId = await getUserIdFromToken(req);
 
     // 1. Find the booking
     const booking = await TicketBook.findById(bookingId)
@@ -366,6 +366,11 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
         booking.ticket,
         String(refund.amount)
       );
+
+      await sendNotification(userId, {
+        title: "Ticket Booked",
+        body: `You have successfully booked ticket`,
+      });
     }
 
     await session.commitTransaction();
