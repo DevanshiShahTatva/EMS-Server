@@ -109,7 +109,7 @@ export const loginUser = async (req: Request, res: Response) => {
     const rcResponse = new ApiResponse();
     const sort = { created: -1 };
     const body = req.body;
-    const { email, password } = body;
+    const { email, password, fcmToken } = body;
 
     // empty field validation
     if (!email || !password) {
@@ -174,6 +174,12 @@ export const loginUser = async (req: Request, res: Response) => {
       const token = jwt.sign(tokenUser, process.env.TOKEN_SECRET!, {
         expiresIn: "1d",
       });
+
+      // Add token to user's device list
+      await User.updateOne(
+        { _id: findUser._id },
+        { $addToSet: { fcmTokens: fcmToken } } // Prevent duplicates
+      );
 
       const userDataWithToken = {
         ...tokenUser,

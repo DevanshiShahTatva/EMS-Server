@@ -15,6 +15,7 @@ import PointTransaction from "../models/pointTransaction";
 import { CancelCharge } from "../models/cancelCharge.model";
 import Voucher from "../models/voucher.model";
 import { generateUniquePromoCode } from "../helper/generatePromoCode";
+import { sendNotification } from "../services/notificationService";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-08-16" as any,
@@ -178,6 +179,7 @@ export const postTicketBook = async (req: Request, res: any) => {
         if (userData) {
           // Get the populated ticket type name
           const ticketTypeName = selectedTicket.type?.name || "";
+          
           await sendBookingConfirmationEmail(
             userData.email,
             userData.name,
@@ -187,6 +189,16 @@ export const postTicketBook = async (req: Request, res: any) => {
             totalAmount,
             booking._id
           );
+
+          await sendNotification(user, {
+            title: "Ticket Booked",
+            body: `You have successfully booked ticket for ${event.title}`,
+            data: {
+              eventTitle: event.title,
+              bookingId: booking._id,
+              ticketType: ticketTypeName
+            }
+          });
         }
       } catch (emailError) {
         console.error("Failed to send booking email:", emailError);
