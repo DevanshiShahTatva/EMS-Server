@@ -179,16 +179,17 @@ export const postTicketBook = async (req: Request, res: any) => {
         if (userData) {
           // Get the populated ticket type name
           const ticketTypeName = selectedTicket.type?.name || "";
-          
-          await sendBookingConfirmationEmail(
-            userData.email,
-            userData.name,
-            event.title,
-            ticketTypeName,
-            seats,
-            totalAmount,
-            booking._id
-          );
+          setImmediate(() => {
+            sendBookingConfirmationEmail(
+              userData.email,
+              userData.name,
+              event.title,
+              ticketTypeName,
+              seats,
+              totalAmount,
+              booking._id
+            );
+          });
 
           await sendNotification(user, {
             title: "Ticket Booked",
@@ -359,13 +360,15 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
         cancelledAt: new Date(),
       };
 
-      await cancelEventTicketMail(
-        booking.user.email,
-        booking.user.name,
-        booking.event.title,
-        booking.ticket,
-        String(refund.amount)
-      );
+      setImmediate(() => {
+        cancelEventTicketMail(
+          booking.user.email,
+          booking.user.name,
+          booking.event.title,
+          booking.ticket,
+          String(refund.amount)
+        );
+      });
 
       await sendNotification(userId, {
         title: "Ticket Booked",

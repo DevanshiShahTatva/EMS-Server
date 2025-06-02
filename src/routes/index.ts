@@ -13,6 +13,7 @@ import ticketCategoryRoutes from "./ticketCategoryRoutes";
 import adminConfigRoutes from "./adminConfigRoutes";
 import voucherRoutes from "./voucherRoutes";
 import notificationRoutes from './notificationRoutes';
+import chatbotRoutes from "./chatbotRoutes";
 
 const router = Router();
 router.use(authRoutes);
@@ -29,5 +30,6 @@ router.use('/ticket-categories', ticketCategoryRoutes);
 router.use('/admin/setting', adminConfigRoutes);
 router.use('/voucher', voucherRoutes);
 router.use('/notification', notificationRoutes);
+router.use('/chatbot', chatbotRoutes);
 
 export default router;
