@@ -8,7 +8,7 @@ const notificationSchema = new mongoose.Schema({
   },
   title: { type: String, require: true },
   body: { type: String, require: true },
-  isRead: { type: String, default: false },
+  isRead: { type: Boolean, default: false },
   data: { type: mongoose.Schema.Types.Mixed },
   createdAt: { type: Date, default: Date.now },
 });

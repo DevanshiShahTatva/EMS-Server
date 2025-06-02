@@ -29,7 +29,10 @@ export async function sendNotification(
           title: payload.title,
           body: payload.body,
         },
-        data: payload.data || {},
+        data: {
+          ...(payload.data || {}),
+          _id: notification._id.toString(), // This is the critical fix
+        },
         tokens: user.fcmTokens, // Send to multiple devices
       };
       await messaging.sendEachForMulticast(message);

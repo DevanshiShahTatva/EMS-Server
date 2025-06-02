@@ -32,6 +32,7 @@ import xlsx from "xlsx";
 import path from "path";
 import fs from "fs";
 import { generateSecurePassword } from "../helper/generatePromoCode";
+import { sendNotification } from "../services/notificationService";
 
 dotenv.config();
 
@@ -180,12 +181,6 @@ export const loginUser = async (req: Request, res: Response) => {
       const token = jwt.sign(tokenUser, process.env.TOKEN_SECRET!, {
         expiresIn: "1d",
       });
-
-      // Add token to user's device list
-      await User.updateOne(
-        { _id: findUser._id },
-        { $addToSet: { fcmTokens: fcmToken } } // Prevent duplicates
-      );
 
       const userDataWithToken = {
         ...tokenUser,
@@ -720,6 +715,12 @@ export const updateUser = async (req: Request, res: Response) => {
     }
 
     rcResponse.data = await updateOne("User", { _id: userId }, newData);
+    setImmediate(() => {
+      sendNotification(userId, {
+        title: "Profile Update",
+        body: `You have successfully update profile`
+      });
+    });
     return res.status(rcResponse.status).send(rcResponse);
   } catch (error) {
     console.log("rerro", error);

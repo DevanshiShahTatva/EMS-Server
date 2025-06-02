@@ -191,14 +191,16 @@ export const postTicketBook = async (req: Request, res: any) => {
             );
           });
 
-          await sendNotification(user, {
-            title: "Ticket Booked",
-            body: `You have successfully booked ticket for ${event.title}`,
-            data: {
-              eventTitle: event.title,
-              bookingId: booking._id,
-              ticketType: ticketTypeName
-            }
+          setImmediate(() => {
+            sendNotification(user, {
+              title: "Ticket Booked",
+              body: `You have successfully booked ticket for ${event.title}`,
+              data: {
+                eventTitle: event.title,
+                bookingId: booking._id,
+                ticketType: ticketTypeName
+              }
+            });
           });
         }
       } catch (emailError) {
@@ -370,14 +372,16 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
         );
       });
 
-      await sendNotification(userId, {
-        title: "Ticket Booked",
-        body: `You have successfully booked ticket`,
+      setImmediate(() => {
+        sendNotification(userId, {
+          title: "Ticket Cancelled",
+          body: `You have been cancelled ticket successfully`
+        });
       });
     }
 
     await session.commitTransaction();
-    res.status(rcResponse.status).send(rcResponse);
+    return res.status(rcResponse.status).send(rcResponse);
   } catch (error) {
     console.log("Error::", error);
     await session.abortTransaction();

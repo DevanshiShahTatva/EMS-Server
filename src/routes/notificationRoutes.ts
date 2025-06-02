@@ -4,6 +4,8 @@ import {
   postNotification,
   markAsReadNotification,
   markAsAllReadNotification,
+  registerFcmToken,
+  unregisterFCMToken
 } from "../controllers/notificationCtrl";
 import { validateToken } from "../middlewares/checkToken";
 
@@ -11,6 +13,8 @@ const router = Router();
 
 router.get("/get-all-notification", validateToken, getAllNotification);
 router.post("/post-notification", validateToken, postNotification);
+router.post("/register/fcm-token", validateToken, registerFcmToken);
+router.post("/unregister/fcm-token", validateToken, unregisterFCMToken);
 router.delete(
   "/mark-as-read/:notificationId",
   validateToken,
