@@ -50,6 +50,23 @@ export const markAsAllReadNotification = async (
   }
 };
 
+export const readNotification = async (req: Request, res: Response) => {
+  try {
+    const userId = await getUserIdFromToken(req);
+    const notificationId = req.params.id;
+    const rcResponse = new ApiResponse();
+
+    rcResponse.data = await Notification.updateOne(
+      { userId: userId, _id: notificationId },
+      { isRead: true }
+    );
+    res.status(rcResponse.status).send(rcResponse);
+  } catch (error) {
+    console.log("error::", error);
+    return throwError(error);
+  }
+};
+
 export const postNotification = async (req: Request, res: Response) => {
   try {
     const userId = await getUserIdFromToken(req);
@@ -95,16 +112,13 @@ export const unregisterFCMToken = async (req: Request, res: Response) => {
     if (!findUser) {
       return throwError(res, "User not found", HTTP_STATUS_CODE.NOT_FOUND);
     }
-    
+
     // Remove token from user's devices
-    await User.updateOne(
-      { _id: userId },
-      { $pull: { fcmTokens: fcmToken } }
-    );
-    
+    await User.updateOne({ _id: userId }, { $pull: { fcmTokens: fcmToken } });
+
     rcResponse.message = "Fcm Token has been unregistered";
     res.status(rcResponse.status).send(rcResponse);
   } catch (error) {
     return throwError(res);
   }
-}
+};

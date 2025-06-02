@@ -198,7 +198,8 @@ export const postTicketBook = async (req: Request, res: any) => {
               data: {
                 eventTitle: event.title,
                 bookingId: booking._id,
-                ticketType: ticketTypeName
+                ticketType: ticketTypeName,
+                type: "ticket"
               }
             });
           });
@@ -375,7 +376,10 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
       setImmediate(() => {
         sendNotification(userId, {
           title: "Ticket Cancelled",
-          body: `You have been cancelled ticket successfully`
+          body: `You have been cancelled ticket successfully`,
+          data: {
+            type: "ticket"
+          }
         });
       });
     }

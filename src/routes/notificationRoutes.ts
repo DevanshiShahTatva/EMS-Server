@@ -5,7 +5,8 @@ import {
   markAsReadNotification,
   markAsAllReadNotification,
   registerFcmToken,
-  unregisterFCMToken
+  unregisterFCMToken,
+  readNotification
 } from "../controllers/notificationCtrl";
 import { validateToken } from "../middlewares/checkToken";
 
@@ -21,5 +22,6 @@ router.delete(
   markAsReadNotification
 );
 router.delete("/mark-as-all-read", validateToken, markAsAllReadNotification);
+router.put("/read-notification/:id", validateToken, readNotification);
 
 export default router;

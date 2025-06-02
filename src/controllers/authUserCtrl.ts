@@ -521,6 +521,18 @@ export const settingResetPassword = async (req: Request, res: Response) => {
 
     rcResponse.data = await updateOne("User", { _id: userId }, currentUser[0]);
     rcResponse.message = "Your password has been successfully changed.";
+
+    // send notification for update password
+    setImmediate(() => {
+      sendNotification(userId, {
+        title: "Password Updated",
+        body: `You have successfully updated password`,
+        data: {
+          type: "profile"
+        }
+      });
+    });
+
     return res.status(rcResponse.status).send(rcResponse);
   } catch (error) {
     return throwError(res);
@@ -654,6 +666,18 @@ export const settingVerifyEmail = async (req: Request, res: Response) => {
     await session.commitTransaction();
 
     rcResponse.message = "Email updated successfully";
+
+    // send notification for update email
+    setImmediate(() => {
+      sendNotification(user, {
+        title: "Email Updated",
+        body: `You have successfully updated email`,
+        data: {
+          type: "profile"
+        }
+      });
+    });
+
     return res.status(rcResponse.status).send(rcResponse);
 
   } catch (error: any) {
@@ -718,7 +742,10 @@ export const updateUser = async (req: Request, res: Response) => {
     setImmediate(() => {
       sendNotification(userId, {
         title: "Profile Update",
-        body: `You have successfully update profile`
+        body: `You have successfully update profile`,
+        data: {
+          type: "profile"
+        }
       });
     });
     return res.status(rcResponse.status).send(rcResponse);
