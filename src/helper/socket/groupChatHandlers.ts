@@ -9,6 +9,13 @@ interface GroupMessageData {
   content: string;
 }
 
+interface IEditMessage {
+  groupId: string;
+  messageId: string;
+  newContent: string;
+  status: 'edited' | 'deleted';
+};
+
 export default function groupChatHandlers(io: Server, socket: AuthenticatedSocket) {
   const joinGroupChat = async ({ groupId }: { groupId: string }) => {
     if (!socket.userId || !mongoose.Types.ObjectId.isValid(groupId)) {
@@ -52,6 +59,16 @@ export default function groupChatHandlers(io: Server, socket: AuthenticatedSocke
         throw new Error('Invalid user or group ID');
       }
 
+      const systemMessage = new Message({
+        group: groupId,
+        isSystemMessage: true,
+        systemMessageType: 'user_left',
+        content: `${socket?.userName ?? 'User'} left`,
+        systemMessageData: { userId: socket.userId },
+        readBy: [socket.userId],
+      });
+      await systemMessage.save();
+
       await GroupChat.findByIdAndUpdate(
         groupId,
         { $pull: { members: socket.userId } },
@@ -61,7 +78,11 @@ export default function groupChatHandlers(io: Server, socket: AuthenticatedSocke
         groupId,
         removedMemberId: socket.userId,
       });
+
+      io.to(groupId).emit('new_group_message', systemMessage);
+
       socket.leave(groupId);
+
     } catch (error) {
       console.error('Error:', error);
       socket.emit('error', 'Failed to leave group chat');
@@ -135,10 +156,49 @@ export default function groupChatHandlers(io: Server, socket: AuthenticatedSocke
     });
   }
 
+  const editOrDeleteMessage = async ({ status, groupId, messageId, newContent }: IEditMessage) => {
+    try {
+      if (!socket.userId) {
+        throw new Error('Invalid request');
+      }
+
+      const updatedMessage = await Message.findOneAndUpdate(
+        {
+          _id: messageId,
+          group: groupId,
+          sender: socket.userId,
+        },
+        {
+          status: status,
+          content: newContent.trim(),
+        },
+        { new: true }
+      );
+
+      if (!updatedMessage) {
+        throw new Error('Message not found or edit not allowed');
+      }
+
+      io.to(groupId).emit('new_edited_or_deleted_message', {
+        status,
+        groupId,
+        messageId,
+        newMessage: newContent
+      });
+
+      socket.emit('message_edited_or_deleted_successfully', { status });
+
+    } catch (error) {
+      console.error('Error:', error);
+      socket.emit('error', 'Failed to edit message');
+    }
+  }
+
   socket.on('join_group_chat', joinGroupChat);
   socket.on('typing', typingMessage);
   socket.on('stop_typing', stopTypingMessage);
   socket.on('group_message', handleGroupMessage);
+  socket.on('edit_or_delete_message', editOrDeleteMessage);
   socket.on('leave_group_chat', leaveGroupChat);
 
   joinUserGroups();
