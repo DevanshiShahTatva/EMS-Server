@@ -892,6 +892,21 @@ export const getEventFeedbackAnalytics = async (
           },
         },
       },
+      // Join with the Events collection to get event details
+      {
+        $lookup: {
+          from: "events",
+          localField: "eventId",
+          foreignField: "_id",
+          as: "eventDetails",
+        },
+      },
+      {
+        $unwind: {
+          path: "$eventDetails",
+          preserveNullAndEmptyArrays: true
+        },
+      },
       {
         $group: {
           _id: "$eventId",
@@ -900,8 +915,8 @@ export const getEventFeedbackAnalytics = async (
           ratingsCount: {
             $push: "$rating",
           },
-          eventTitle: { $first: "$eventTitle" },
-          eventImage: { $first: "$eventImage" },
+          eventTitle: { $first: "$eventDetails.title" },
+          eventImage: { $first: "$eventDetails.image" },
         },
       },
       {
