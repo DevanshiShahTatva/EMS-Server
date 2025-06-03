@@ -1,6 +1,5 @@
+import { sendNotificationToUser } from "../helper/socket/notificationHandler";
 import Notification from "../models/notification.model";
-import User from "../models/signup.model";
-import { messaging } from "./firebase";
 
 type NotificationPayload = {
   title: string;
@@ -13,6 +12,7 @@ export async function sendNotification(
   payload: NotificationPayload
 ) {
   try {
+    // Create notification in database
     const notification = new Notification({
       userId,
       ...payload,
@@ -20,27 +20,17 @@ export async function sendNotification(
 
     await notification.save();
 
-    const user = await User.findById(userId).select("fcmTokens");
-
-    // Send via Firebase if token exists
-    if (user?.fcmTokens && user.fcmTokens.length > 0) {
-      const message = {
-        notification: {
-          title: payload.title,
-          body: payload.body,
-        },
-        data: {
-          ...(payload.data || {}),
-          _id: notification._id.toString(), // This is the critical fix
-        },
-        tokens: user.fcmTokens, // Send to multiple devices
-      };
-      await messaging.sendEachForMulticast(message);
-    }
+    // Send via Socket.IO
+    await sendNotificationToUser(userId, {
+      ...payload,
+      _id: notification._id.toString(),
+      createdAt: notification.createdAt,
+      isRead: false
+    });
 
     return notification;
   } catch (error) {
-    console.log("error", error);
+    console.error("error", error);
     throw new Error(
       `Notification failed: ${error instanceof Error ? error.message : "Unknown error"}`
     );
