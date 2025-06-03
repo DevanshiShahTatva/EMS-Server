@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 import { getUserIdFromToken, throwError } from "../helper/common";
 import { HTTP_STATUS_CODE } from "../utilits/enum";
 import GroupChat from "../models/groupChat.model";
-import Message from "../models/message.model";
+import Message from "../models/groupMessage.model";
 
 export const groupChatList = async (req: Request, res: Response) => {
   try {

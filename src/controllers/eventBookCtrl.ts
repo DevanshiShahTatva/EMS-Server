@@ -17,7 +17,7 @@ import Voucher from "../models/voucher.model";
 import { generateUniquePromoCode } from "../helper/generatePromoCode";
 import GroupChat from "../models/groupChat.model";
 import { io } from "../server";
-import Message from "../models/message.model";
+import Message from "../models/groupMessage.model";
 import { sendNotification } from "../services/notificationService";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {

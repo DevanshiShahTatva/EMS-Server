@@ -1,25 +1,93 @@
 import { Request, Response } from "express";
+import mongoose from "mongoose";
 import { getUserIdFromToken, throwError } from "../helper/common";
 import { HTTP_STATUS_CODE } from "../utilits/enum";
-import Message from "../models/message.model";
+import Message from "../models/groupMessage.model";
 import PrivateChat from "../models/privateChat.model";
 
 export const privateChatList = async (req: Request, res: Response) => {
   try {
-    const userId = getUserIdFromToken(req);
+    const currentUserId = getUserIdFromToken(req);
+    const userId = new mongoose.Types.ObjectId(currentUserId);
 
-    const messages = await PrivateChat.find({
-      $or: [
-        { sender: userId },
-        { receiver: userId }
-      ]
-    })
-      .populate('receiver', 'name profileimage')
-      .populate('sender', 'name profileimage')
-      .sort({ createdAt: -1 })
-      .lean();
+    const privateChats = await PrivateChat.aggregate([
+      {
+        $match: {
+          $or: [
+            { sender: userId },
+            { receiver: userId }
+          ]
+        }
+      },
+      { $sort: { updatedAt: -1 } },
+      {
+        $lookup: {
+          from: "messages",
+          localField: "lastMessage",
+          foreignField: "_id",
+          as: "lastMessage",
+          pipeline: [
+            {
+              $lookup: {
+                from: "users",
+                localField: "sender",
+                foreignField: "_id",
+                as: "sender",
+                pipeline: [{ $project: { name: 1 } }]
+              }
+            },
+            { $unwind: "$sender" },
+            { $project: { content: 1, createdAt: 1, sender: 1 } }
+          ]
+        }
+      },
+      { $unwind: { path: "$lastMessage", preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: "users",
+          localField: "sender",
+          foreignField: "_id",
+          as: "senderInfo",
+          pipeline: [{ $project: { name: 1, "profileimage.url": 1 } }]
+        }
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "receiver",
+          foreignField: "_id",
+          as: "receiverInfo",
+          pipeline: [{ $project: { name: 1, "profileimage.url": 1 } }]
+        }
+      },
+      { $unwind: "$senderInfo" },
+      { $unwind: "$receiverInfo" },
+      {
+        $project: {
+          _id: 1,
+          lastMessage: 1,
+          participant: {
+            $cond: [
+              { $eq: ["$sender", userId] },
+              "$receiverInfo",
+              "$senderInfo"
+            ]
+          }
+        }
+      }
+    ]);
 
-    res.json({ success: true, userId, data: messages });
+    const chats = privateChats.map((chat) => ({
+      id: chat._id,
+      name: chat.participant.name,
+      image: chat.participant.profileimage?.url ?? null,
+      senderId: chat.participant._id,
+      lastMessage: chat.lastMessage?.content ?? null,
+      lastMessageSender: chat.lastMessage?.sender?.name ?? null,
+      lastMessageTime: chat.lastMessage?.createdAt ?? null,
+    }));
+
+    res.json({ success: true, userId, data: chats });
 
   } catch (err) {
     console.log('Error', err);
@@ -49,7 +117,28 @@ export const createPrivateChat = async (req: Request, res: Response) => {
       await privateChat.save();
     }
 
-    res.json({ success: true, userId, data: privateChat });
+    await privateChat.populate([
+      {
+        path: "sender",
+        select: "name profileimage.url"
+      },
+      {
+        path: "receiver",
+        select: "name profileimage.url"
+      }
+    ]);
+
+    const isSender = privateChat.sender._id.toString() === userId.toString();
+    const participant = isSender ? privateChat.receiver : privateChat.sender;
+
+    const newChat = {
+      id: privateChat._id,
+      name: participant.name,
+      image: participant.profileimage?.url ?? null,
+      senderId: participant._id,
+    }
+
+    res.json({ success: true, userId, chat: newChat });
 
   } catch (err) {
     console.log('Error', err);
@@ -63,22 +152,47 @@ export const createPrivateChat = async (req: Request, res: Response) => {
 
 export const getPrivateMessages = async (req: Request, res: Response) => {
   try {
+    const { chatId } = req.params;
     const userId = getUserIdFromToken(req);
+    const { limit = 20, before } = req.query;
 
-    const messages = await Message.find({})
+    if (!mongoose.Types.ObjectId.isValid(chatId)) {
+      res.status(400).json({ error: 'Invalid Chat ID' });
+      return;
+    }
+
+    const isMember = await PrivateChat.exists({
+      _id: chatId,
+      $or: [
+        { sender: userId },
+        { receiver: userId }
+      ]
+    });
+
+    if (!isMember) {
+      res.status(403).json({ error: 'You are not a member of this chat' });
+      return;
+    }
+
+    const query: any = { privateChat: chatId };
+    if (before && !isNaN(Date.parse(before as string))) {
+      query.createdAt = { $lt: new Date(before as string) };
+    }
+
+    const messages: any = await Message.find(query)
       .sort({ createdAt: -1 })
-      .limit(20)
-      .populate('receiver', 'name profileimage')
+      .limit(Number(limit))
+      .populate('sender', 'name profileimage')
       .lean();
 
-    res.json({ success: true, userId, data: messages });
+    res.status(200).json({
+      success: true,
+      data: messages.reverse(),
+      hasMore: messages.length === Number(limit)
+    });
 
-  } catch (err) {
-    console.log('Error', err);
-    return throwError(
-      res,
-      "Failed to fetch personal messages",
-      HTTP_STATUS_CODE.BAD_REQUEST
-    );
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: 'Failed to fetch messages' });
   }
-}
+};

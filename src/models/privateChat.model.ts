@@ -10,7 +10,7 @@ const privateChatSchema = new mongoose.Schema({
   toObject: { virtuals: true }
 });
 
-privateChatSchema.index({ sender: 1, receiver: 1 }, { unique: true });
+privateChatSchema.index({ updatedAt: -1 });
 
 const PrivateChat = mongoose.models.PrivateChat || mongoose.model('PrivateChat', privateChatSchema);
 

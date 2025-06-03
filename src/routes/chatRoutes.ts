@@ -8,8 +8,8 @@ const router = Router();
 router.get("/my-group-chat", validateToken, groupChatList);
 router.get('/messages/:groupId', validateToken, getGroupMessages);
 
-router.get('/my-private-chat', validateToken, privateChatList);
 router.post('/create-private-chat', validateToken, createPrivateChat);
+router.get('/my-private-chat', validateToken, privateChatList);
 router.get('/private-messages/:chatId', validateToken, getPrivateMessages);
 
 export default router;

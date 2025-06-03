@@ -1,6 +1,6 @@
 import { Server } from 'socket.io';
 import mongoose from 'mongoose';
-import Message from '../../models/message.model';
+import Message from '../../models/groupMessage.model';
 import GroupChat from '../../models/groupChat.model';
 import { AuthenticatedSocket } from '.';
 

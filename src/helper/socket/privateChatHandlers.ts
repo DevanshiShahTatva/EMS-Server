@@ -1,8 +1,8 @@
 import { Server } from 'socket.io';
 import mongoose from 'mongoose';
 import { AuthenticatedSocket } from '.';
-import Message from '../../models/message.model';
 import PrivateChat from '../../models/privateChat.model';
+import PrivateMessage from '../../models/privateMessage.model';
 
 interface IEditMessage {
   chatId: string;
@@ -20,7 +20,7 @@ export default function privateChatHandlers(io: Server, socket: AuthenticatedSoc
     const room = `private_${chatId}`;
     socket.join(room);
 
-    const recentMessages: any = await Message.find({ privateChat: chatId })
+    const recentMessages: any = await PrivateMessage.find({ _id: chatId })
       .sort({ createdAt: -1 })
       .limit(20)
       .populate('sender', 'name profileimage')
@@ -45,7 +45,7 @@ export default function privateChatHandlers(io: Server, socket: AuthenticatedSoc
         return;
       }
 
-      const message = new Message({
+      const message = new PrivateMessage({
         sender: socket.userId,
         privateChat: chatId,
         content: content.trim(),
@@ -96,7 +96,7 @@ export default function privateChatHandlers(io: Server, socket: AuthenticatedSoc
         throw new Error('Invalid request');
       }
 
-      const updatedMessage = await Message.findOneAndUpdate(
+      const updatedMessage = await PrivateMessage.findOneAndUpdate(
         {
           _id: messageId,
           privateChat: chatId,

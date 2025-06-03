@@ -1,24 +1,11 @@
 import mongoose from 'mongoose';
 
-const messageSchema = new mongoose.Schema({
+const groupMessageSchema = new mongoose.Schema({
   sender: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: function (this: any) {
       return !this.isSystemMessage;
-    }
-  },
-  privateChat: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'PrivateChat',
-    required: function (this: any) {
-      return !this.group && !this.isSystemMessage;
-    },
-    validate: {
-      validator: function (this: any, value: mongoose.Types.ObjectId) {
-        return !this.group;
-      },
-      message: 'Cannot specify both privateChat and group'
     }
   },
   group: {
@@ -54,10 +41,10 @@ const messageSchema = new mongoose.Schema({
   toObject: { virtuals: true }
 });
 
-messageSchema.index({ group: 1, createdAt: -1 });
-messageSchema.index({ sender: 1, privateChat: 1, createdAt: -1 });
-messageSchema.index({ isSystemMessage: 1 });
+groupMessageSchema.index({ group: 1, createdAt: -1 });
+groupMessageSchema.index({ sender: 1, createdAt: -1 });
+groupMessageSchema.index({ isSystemMessage: 1 });
 
-const Message = mongoose.models.Message || mongoose.model('Message', messageSchema);
+const GroupMessage = mongoose.models.GroupMessage || mongoose.model('GroupMessage', groupMessageSchema);
 
-export default Message;
+export default GroupMessage;
