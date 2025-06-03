@@ -13,11 +13,14 @@ import { Types } from "mongoose";
 import User from "../models/signup.model";
 import { HTTP_STATUS_CODE } from "../utilits/enum";
 import TicketBook from "../models/eventBooking.model";
+import { sendNotification } from "../services/notificationService";
 export const feedbackEvent = async (req: Request, res: Response): Promise<void> => {
     try {
       const rcResponse = new ApiResponse();
       const { rating, description } = req.body
       const eventId = req.params.id;
+      const user_id = await getUserIdFromToken(req);
+
       if (!rating) {
         res.status(rcResponse.status).json({ message: 'Rating is required.' })
         return
@@ -56,6 +59,18 @@ export const feedbackEvent = async (req: Request, res: Response): Promise<void> 
         message:"Feedback submitted successfully!",
         feedbackId:feedback._id
       }
+
+      // send notification for submit feedback
+      setImmediate(() => {
+        sendNotification(user_id, {
+          title: "Feedback Submitted",
+          body: `You have successfully submitted feedback`,
+          data: {
+            type: "feedback"
+          }
+        });
+      });
+
       res.status(rcResponse.status).send(rcResponse);
     } catch (error) {
       return throwError(res);
@@ -156,6 +171,8 @@ export const deleteFeedback = async (req:Request,res:Response)=>{
   try{
     const rcResponse = new ApiResponse();
     const feedbackId = req.params.id;
+    const userId = await getUserIdFromToken(req);
+
     let sort = {created:-1};
     const feedback = await findOne("Feedback",{_id:feedbackId},sort);
     if(!feedback){
@@ -163,6 +180,18 @@ export const deleteFeedback = async (req:Request,res:Response)=>{
     }
     rcResponse.data = await deleteOne("Feedback",{_id:feedbackId});
     rcResponse.message = "Feedback deleted Successfully";
+
+    // send notification for delete feedback
+    setImmediate(() => {
+      sendNotification(userId, {
+        title: "Feedback Deleted",
+        body: `You have successfully deleted feedback`,
+        data: {
+          type: "feedback"
+        }
+      });
+    });
+
     return res.status(rcResponse.status).send(rcResponse);
   }catch(error){
     return throwError(res);
@@ -173,6 +202,8 @@ export const editFeedback = async(req:Request,res:Response)=>{
   try{
     const rcResponse = new ApiResponse();
     const feedbackId = req.params.id;
+    const userId = await getUserIdFromToken(req);
+
     const findEvent = await findOne("Feedback",{_id:feedbackId});
     if(!findEvent){
       return throwError(res,"Feedback not found",HTTP_STATUS_CODE.NOT_FOUND);
@@ -184,6 +215,18 @@ export const editFeedback = async(req:Request,res:Response)=>{
     const result = await updateOne("Feedback", { _id: feedbackId }, updatedFeedback);
     rcResponse.data = result;
     rcResponse.message = "Feedback updated successfully.";
+
+    // send notification for edit feedback
+    setImmediate(() => {
+      sendNotification(userId, {
+        title: "Feedback Updated",
+        body: `You have successfully updated feedback`,
+        data: {
+          type: "feedback"
+        }
+      });
+    });
+
     return res.status(rcResponse.status).send(rcResponse);
   } catch (error){
     return throwError(res);
