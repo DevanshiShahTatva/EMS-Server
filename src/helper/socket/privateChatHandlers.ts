@@ -20,7 +20,7 @@ export default function privateChatHandlers(io: Server, socket: AuthenticatedSoc
     const room = `private_${chatId}`;
     socket.join(room);
 
-    const recentMessages: any = await PrivateMessage.find({ _id: chatId })
+    const recentMessages: any = await PrivateMessage.find({ privateChat: chatId })
       .sort({ createdAt: -1 })
       .limit(20)
       .populate('sender', 'name profileimage')
