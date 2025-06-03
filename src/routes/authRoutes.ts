@@ -13,6 +13,7 @@ import {
   getAllUsers,
   bulkUsersUpload,
   singleUserCreation,
+  deleteUser,
 } from "../controllers/authUserCtrl";
 import { validateAdminToken, validateToken } from "../middlewares/checkToken";
 import multer from "multer";
@@ -46,5 +47,8 @@ authRoutes.post("/admin/bulk-uploads", validateAdminToken, upload.single("file")
 
 // Single User Creation
 authRoutes.post("/admin/single-user-creation", validateAdminToken, singleUserCreation)
+
+// User deletion
+authRoutes.delete("/admin/delete-user/:id", validateAdminToken, deleteUser)
 
 export default authRoutes;

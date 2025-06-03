@@ -1,4 +1,14 @@
 import { Request, Response } from "express";
+
+// models
+import User from "../models/signup.model";
+import PointSettings from "../models/pointSetting.model";
+import TicketBook from "../models/eventBooking.model";
+import PointTransaction from "../models/pointTransaction";
+import Voucher from "../models/voucher.model";
+
+
+// helpers
 import {
   ApiResponse,
   create,
@@ -8,10 +18,6 @@ import {
   updateOne,
   validateEmail,
 } from "../helper/common";
-import { HTTP_STATUS_CODE } from "../utilits/enum";
-import bcryptjs from "bcryptjs";
-import jwt from "jsonwebtoken";
-import dotenv from "dotenv";
 import {
   resetPasswordSuccessMail,
   sendOtpToEmail,
@@ -19,20 +25,24 @@ import {
   sendOtpForEmailChange,
   sendUserCreationEmail,
 } from "../helper/nodemailer";
-import User from "../models/signup.model";
-import PointSettings from "../models/pointSetting.model";
-import mongoose, { Types } from "mongoose";
-import { deleteFromCloudinary, saveFileToCloud } from "../helper/cloudniry";
-import crypto from 'crypto';
 import { appLogger } from "../helper/logger";
-import PointTransaction from "../models/pointTransaction";
-import Voucher from "../models/voucher.model";
+import { deleteFromCloudinary, saveFileToCloud } from "../helper/cloudniry";
+import { generateSecurePassword } from "../helper/generatePromoCode";
+import { sendNotification } from "../services/notificationService";
+
+// constatnt
+import { HTTP_STATUS_CODE } from "../utilits/enum";
+
+// library
+import bcryptjs from "bcryptjs";
+import jwt from "jsonwebtoken";
+import dotenv from "dotenv";
+import mongoose, { Types } from "mongoose";
+import crypto from 'crypto';
 import csv from "csvtojson";
 import xlsx from "xlsx";
 import path from "path";
 import fs from "fs";
-import { generateSecurePassword } from "../helper/generatePromoCode";
-import { sendNotification } from "../services/notificationService";
 
 dotenv.config();
 
@@ -375,7 +385,9 @@ export const bulkUsersUpload = async ( req: Request, res: Response) => {
 
           // Send welcome email with plainPassword
           const { email, name, role } = newUserBody
-          sendUserCreationEmail(email, name, plainPassword, role)
+          setImmediate(() => {
+            sendUserCreationEmail(email, name, plainPassword, role)
+          })
         }
 
         await session.commitTransaction();
@@ -442,8 +454,10 @@ export const singleUserCreation = async ( req: Request, res: Response) => {
         description: `Welcome bonus points`,
       }], { session });
 
-      // Send welcome email with plainPassword
-      sendUserCreationEmail(email, name, plainPassword, role)
+      setImmediate(() => {
+        // Send welcome email with plainPassword
+        sendUserCreationEmail(email, name, plainPassword, role)
+      })
 
       await session.commitTransaction();
       session.endSession();
@@ -754,3 +768,35 @@ export const updateUser = async (req: Request, res: Response) => {
     return throwError(res);
   }
 };
+
+export const deleteUser = async (req: Request, res: Response) => {
+  try {
+     const rcResponse = new ApiResponse();
+     const { id } = req.params
+
+     // Check if userId is a valid ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return throwError(res, "Invalid user id", HTTP_STATUS_CODE.BAD_REQUEST)
+    }
+
+     // Check for any active bookings
+    const hasBooking = await TicketBook.exists({ user: id });
+
+    if (hasBooking) {
+      return throwError(res, "User has booked tickets so it cannot be deleted.", HTTP_STATUS_CODE.BAD_REQUEST)
+    }
+
+    // Proceed to delete
+    const deletedUser = await User.findByIdAndDelete(id);
+
+    if (!deletedUser) {
+      return throwError(res, "User not found.", HTTP_STATUS_CODE.BAD_REQUEST)
+    }
+
+    // Return unified response
+    rcResponse.message = "User deleted successfully.";
+    return res.status(rcResponse.status).send(rcResponse);
+  } catch (error) {
+     return throwError(res);
+  }
+}
