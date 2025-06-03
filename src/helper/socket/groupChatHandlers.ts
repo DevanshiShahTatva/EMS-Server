@@ -48,7 +48,7 @@ export default function groupChatHandlers(io: Server, socket: AuthenticatedSocke
       });
 
     } catch (error) {
-      console.error('Error joining group chat:', error);
+      console.error('Err:', error);
       socket.emit('error', 'Failed to join group chat');
     }
   };
@@ -121,10 +121,10 @@ export default function groupChatHandlers(io: Server, socket: AuthenticatedSocke
         lastMessage: savedMessage._id
       });
 
-      io.to(groupId).emit('new_group_message', savedMessage);
+      io.to(groupId).emit('receive_group_message', savedMessage);
 
     } catch (error) {
-      console.error('Error sending group message:', error);
+      console.error('Err:', error);
       socket.emit('error', 'Failed to send message');
     }
   };
@@ -195,8 +195,8 @@ export default function groupChatHandlers(io: Server, socket: AuthenticatedSocke
   }
 
   socket.on('join_group_chat', joinGroupChat);
-  socket.on('typing', typingMessage);
-  socket.on('stop_typing', stopTypingMessage);
+  socket.on('member_typing', typingMessage);
+  socket.on('member_stop_typing', stopTypingMessage);
   socket.on('group_message', handleGroupMessage);
   socket.on('edit_or_delete_message', editOrDeleteMessage);
   socket.on('leave_group_chat', leaveGroupChat);
