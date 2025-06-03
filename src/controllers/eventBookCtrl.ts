@@ -202,6 +202,24 @@ export const postTicketBook = async (req: Request, res: any) => {
                 type: "ticket"
               }
             });
+
+            if (usedPoints) {
+              sendNotification(user, {
+                title: "Redeem Points",
+                body: `You have successfully redeem ${usedPoints} point`,
+                data: {
+                  type: "reward"
+                }
+              });
+            } else if(voucherId) {
+              sendNotification(user, {
+                title: "Redeem Voucher",
+                body: `You have successfully redeem ${voucherId} voucher`,
+                data: {
+                  type: "profile"
+                }
+              });
+            };
           });
         }
       } catch (emailError) {
