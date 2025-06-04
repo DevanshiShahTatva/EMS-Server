@@ -3,7 +3,10 @@ import mongoose from 'mongoose';
 const privateChatSchema = new mongoose.Schema({
   sender: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   receiver: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  lastMessage: { type: mongoose.Schema.Types.ObjectId, ref: 'Message' }
+  lastMessage: { type: mongoose.Schema.Types.ObjectId, ref: 'PrivateMessage' },
+  senderVisible: { type: Boolean, default: false },
+  receiverVisible: { type: Boolean, default: false },
+  hasMessages: { type: Boolean, default: false },
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
