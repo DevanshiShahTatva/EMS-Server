@@ -63,6 +63,7 @@ export const groupChatList = async (req: Request, res: Response) => {
         avatar: member.profileimage?.url ?? null
       })),
       icon: group.event?.images?.[0]?.url ?? null,
+      senderId: group.lastMessage?.sender?._id ?? null,
       status: group.lastMessage?.status ?? "",
       lastMessageSender: group.lastMessage?.sender?.name ?? null,
       lastMessage: group.lastMessage?.content ?? null,

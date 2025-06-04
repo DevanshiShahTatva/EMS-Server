@@ -89,8 +89,8 @@ export const privateChatList = async (req: Request, res: Response) => {
     const chats = privateChats.map((chat) => ({
       id: chat._id,
       name: chat.participant.name,
-      senderId: chat.participant._id,
       image: chat.participant.profileimage?.url ?? null,
+      senderId: chat.lastMessage?.sender?._id ?? null,
       status: chat.lastMessage?.status ?? "", 
       lastMessage: chat.lastMessage?.content ?? null,
       lastMessageSender: chat.lastMessage?.sender?.name ?? null,
