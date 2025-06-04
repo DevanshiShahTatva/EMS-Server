@@ -23,7 +23,7 @@ export const groupChatList = async (req: Request, res: Response) => {
       { $unwind: { path: '$event', preserveNullAndEmptyArrays: true } },
       {
         $lookup: {
-          from: 'messages',
+          from: 'groupmessages',
           localField: 'lastMessage',
           foreignField: '_id',
           as: 'lastMessage',
@@ -63,6 +63,7 @@ export const groupChatList = async (req: Request, res: Response) => {
         avatar: member.profileimage?.url ?? null
       })),
       icon: group.event?.images?.[0]?.url ?? null,
+      status: group.lastMessage?.status ?? "",
       lastMessageSender: group.lastMessage?.sender?.name ?? null,
       lastMessage: group.lastMessage?.content ?? null,
       lastMessageTime: group.lastMessage?.createdAt ?? null,
@@ -70,7 +71,7 @@ export const groupChatList = async (req: Request, res: Response) => {
 
     res.json({ success: true, userId, data: groupData });
   } catch (err) {
-    console.log('Error', err);
+    console.log('Err', err);
     return throwError(
       res,
       "Failed to fetch list",
@@ -118,7 +119,7 @@ export const getGroupMessages = async (req: Request, res: Response) => {
     });
 
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Err:', error);
     res.status(500).json({ error: 'Failed to fetch messages' });
   }
 };

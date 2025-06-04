@@ -82,6 +82,7 @@ export const privateChatList = async (req: Request, res: Response) => {
       name: chat.participant.name,
       image: chat.participant.profileimage?.url ?? null,
       senderId: chat.participant._id,
+      status: chat.lastMessage.status ?? "",
       lastMessage: chat.lastMessage?.content ?? null,
       lastMessageSender: chat.lastMessage?.sender?.name ?? null,
       lastMessageTime: chat.lastMessage?.createdAt ?? null,
@@ -90,7 +91,7 @@ export const privateChatList = async (req: Request, res: Response) => {
     res.json({ success: true, userId, data: chats });
 
   } catch (err) {
-    console.log('Error', err);
+    console.log('Err', err);
     return throwError(
       res,
       "Failed to fetch list",
@@ -141,7 +142,7 @@ export const createPrivateChat = async (req: Request, res: Response) => {
     res.json({ success: true, userId, chat: newChat });
 
   } catch (err) {
-    console.log('Error', err);
+    console.log('Err', err);
     return throwError(
       res,
       "Failed to fetch list",

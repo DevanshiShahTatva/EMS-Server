@@ -4,7 +4,7 @@ const groupSchema = new mongoose.Schema({
   members: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }],
   admin: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   event: { type: mongoose.Schema.Types.ObjectId, ref: 'Event' },
-  lastMessage: { type: mongoose.Schema.Types.ObjectId, ref: 'Message' }
+  lastMessage: { type: mongoose.Schema.Types.ObjectId, ref: 'GroupMessage' }
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
