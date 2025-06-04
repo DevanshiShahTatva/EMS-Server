@@ -2,8 +2,8 @@ import { Request, Response } from "express";
 import mongoose from "mongoose";
 import { getUserIdFromToken, throwError } from "../helper/common";
 import { HTTP_STATUS_CODE } from "../utilits/enum";
-import Message from "../models/groupMessage.model";
 import PrivateChat from "../models/privateChat.model";
+import PrivateMessage from "../models/privateMessage.model";
 
 export const privateChatList = async (req: Request, res: Response) => {
   try {
@@ -14,15 +14,24 @@ export const privateChatList = async (req: Request, res: Response) => {
       {
         $match: {
           $or: [
-            { sender: userId },
-            { receiver: userId }
+            {
+              sender: userId,
+              senderVisible: true
+            },
+            {
+              receiver: userId,
+              $or: [
+                { receiverVisible: true },
+                { hasMessages: true }
+              ]
+            }
           ]
         }
       },
       { $sort: { updatedAt: -1 } },
       {
         $lookup: {
-          from: "messages",
+          from: "privatemessages",
           localField: "lastMessage",
           foreignField: "_id",
           as: "lastMessage",
@@ -80,9 +89,9 @@ export const privateChatList = async (req: Request, res: Response) => {
     const chats = privateChats.map((chat) => ({
       id: chat._id,
       name: chat.participant.name,
-      image: chat.participant.profileimage?.url ?? null,
       senderId: chat.participant._id,
-      status: chat.lastMessage.status ?? "",
+      image: chat.participant.profileimage?.url ?? null,
+      status: chat.lastMessage?.status ?? "", 
       lastMessage: chat.lastMessage?.content ?? null,
       lastMessageSender: chat.lastMessage?.sender?.name ?? null,
       lastMessageTime: chat.lastMessage?.createdAt ?? null,
@@ -104,19 +113,33 @@ export const createPrivateChat = async (req: Request, res: Response) => {
   try {
     const userId = getUserIdFromToken(req);
     const { memberId } = req.body;
+
     let privateChat = await PrivateChat.findOne({
       $or: [
         { sender: userId, receiver: memberId },
         { sender: memberId, receiver: userId }
       ]
     });
+
     if (!privateChat) {
       privateChat = new PrivateChat({
         sender: userId,
         receiver: memberId,
+        senderVisible: true,
+        receiverVisible: false,
+        hasMessages: false
       });
-      await privateChat.save();
+    } else {
+      const isSender = privateChat.sender._id.toString() === userId.toString();
+
+      if (isSender) {
+        privateChat.senderVisible = true;
+      } else {
+        privateChat.receiverVisible = true;
+      }
     }
+
+    await privateChat.save();
 
     await privateChat.populate([
       {
@@ -135,8 +158,8 @@ export const createPrivateChat = async (req: Request, res: Response) => {
     const newChat = {
       id: privateChat._id,
       name: participant.name,
-      image: participant.profileimage?.url ?? null,
       senderId: participant._id,
+      image: participant.profileimage?.url ?? null,
     }
 
     res.json({ success: true, userId, chat: newChat });
@@ -145,7 +168,7 @@ export const createPrivateChat = async (req: Request, res: Response) => {
     console.log('Err', err);
     return throwError(
       res,
-      "Failed to fetch list",
+      "Failed to create chat",
       HTTP_STATUS_CODE.BAD_REQUEST
     );
   }
@@ -180,7 +203,7 @@ export const getPrivateMessages = async (req: Request, res: Response) => {
       query.createdAt = { $lt: new Date(before as string) };
     }
 
-    const messages: any = await Message.find(query)
+    const messages: any = await PrivateMessage.find(query)
       .sort({ createdAt: -1 })
       .limit(Number(limit))
       .populate('sender', 'name profileimage')

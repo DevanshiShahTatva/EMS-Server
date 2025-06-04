@@ -14,9 +14,12 @@ export default function initSocket(io: Server) {
 
   io.on('connection', (socket: AuthenticatedSocket) => {
 
-    groupChatHandlers(io, socket);
-    privateChatHandlers(io, socket);
     notificationHandler(io, socket);
+
+    socket.on('activate_chat_handlers', () => {
+      privateChatHandlers(io, socket);
+      groupChatHandlers(io, socket);
+    });
 
     socket.on('disconnect', () => { });
   });

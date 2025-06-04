@@ -38,29 +38,57 @@ export default function privateChatHandlers(io: Server, socket: AuthenticatedSoc
     }
 
     try {
-      const privateChat = await PrivateChat.findOne({ _id: chatId });
+      const session = await mongoose.startSession();
+      session.startTransaction();
 
-      if (!privateChat) {
-        socket.emit('error', 'Private chat not found!');
-        return;
+      try {
+        const privateChat = await PrivateChat.findOne({ _id: chatId })
+          .session(session);
+
+        if (!privateChat) {
+          throw new Error('Private chat not found');
+        }
+
+        const isParticipant = [privateChat.sender, privateChat.receiver]
+          .some(id => id.toString() === socket.userId);
+
+        if (!isParticipant) {
+          throw new Error('Not authorized to send message in this chat');
+        }
+
+        const message = new PrivateMessage({
+          sender: socket.userId,
+          privateChat: chatId,
+          content: content.trim(),
+          readBy: [socket.userId]
+        });
+
+        let savedMessage = await message.save({ session });
+        savedMessage = await savedMessage.populate('sender', 'name profileimage.url');
+
+        const updateData: any = {
+          lastMessage: savedMessage._id,
+          updatedAt: new Date(),
+          hasMessages: true
+        };
+
+        await PrivateChat.findByIdAndUpdate(chatId,
+          updateData,
+          { session }
+        );
+
+        await session.commitTransaction();
+
+        const room = `private_${chatId}`;
+        io.to(room).emit('receive_private_message', savedMessage);
+
+
+      } catch (error) {
+        await session.abortTransaction();
+        throw error;
+      } finally {
+        session.endSession();
       }
-
-      const message = new PrivateMessage({
-        sender: socket.userId,
-        privateChat: chatId,
-        content: content.trim(),
-        readBy: [socket.userId]
-      });
-
-      let savedMessage = await message.save();
-      savedMessage = await savedMessage.populate('sender', 'name profileimage');
-
-      await PrivateChat.findByIdAndUpdate(chatId, {
-        lastMessage: savedMessage._id
-      });
-
-      const room = `private_${chatId}`;
-      io.to(room).emit('receive_private_message', savedMessage);
 
     } catch (error) {
       console.error('Err:', error);
@@ -96,33 +124,58 @@ export default function privateChatHandlers(io: Server, socket: AuthenticatedSoc
         throw new Error('Invalid request');
       }
 
-      const updatedMessage = await PrivateMessage.findOneAndUpdate(
-        {
-          _id: messageId,
-          privateChat: chatId,
-          sender: socket.userId,
-        },
-        {
-          status: status,
-          content: newContent.trim(),
-        },
-        { new: true }
-      );
+      const session = await mongoose.startSession();
+      session.startTransaction();
+      try {
+        const updatedMessage = await PrivateMessage.findOneAndUpdate(
+          {
+            _id: messageId,
+            privateChat: chatId,
+            sender: socket.userId,
+          },
+          {
+            status: status,
+            content: newContent.trim(),
+          },
+          { new: true, session }
+        );
 
-      if (!updatedMessage) {
-        throw new Error('Message not found or edit not allowed');
+        if (!updatedMessage) {
+          throw new Error('Message not found or edit not allowed');
+        }
+
+        const currentLastMessage = await PrivateChat.findById(chatId)
+          .select('lastMessage')
+          .session(session);
+
+        let isLastMessage = false
+        if (currentLastMessage?.lastMessage?.toString() === messageId) {
+          await PrivateChat.findByIdAndUpdate(chatId,
+            { lastMessage: updatedMessage._id },
+            { session }
+          );
+          isLastMessage = true;
+        }
+
+        await session.commitTransaction();
+
+        const room = `private_${chatId}`;
+        io.to(room).emit('new_edited_or_deleted_private_message', {
+          status,
+          chatId,
+          messageId,
+          newMessage: newContent,
+          isLastMessage: isLastMessage,
+          updatedTime: updatedMessage.createdAt,
+        });
+
+        socket.emit('private_message_edited_or_deleted_successfully', { status });
+      } catch (error) {
+        await session.abortTransaction();
+        throw error;
+      } finally {
+        session.endSession();
       }
-
-      const room = `private_${chatId}`;
-      io.to(room).emit('new_edited_or_deleted_private_message', {
-        status,
-        chatId,
-        messageId,
-        newMessage: newContent
-      });
-
-      socket.emit('private_message_edited_or_deleted_successfully', { status });
-
     } catch (error) {
       console.error('Error:', error);
       socket.emit('error', 'Failed to edit message');

@@ -179,7 +179,7 @@ export default function groupChatHandlers(io: Server, socket: AuthenticatedSocke
         );
 
         if (!updatedMessage) {
-          throw new Error('GroupMessage not found or edit not allowed');
+          throw new Error('Group message not found or edit not allowed');
         }
 
         const currentLastMessage = await GroupChat.findById(groupId)
