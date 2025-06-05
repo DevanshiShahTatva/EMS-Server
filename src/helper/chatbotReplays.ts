@@ -1,5 +1,9 @@
+import { Request } from "express";
+import { Types } from "mongoose";
 import Event from "../models/event.model";
 import Feedback from "../models/feedback.model";
+import User from "../models/signup.model";
+import { getUserIdFromToken } from "./common";
 
 interface Intent {
   name: string;
@@ -35,6 +39,7 @@ interface EventType {
     _id: string;
     name: string;
   };
+  distance: number;
 }
 
 interface NLPData {
@@ -42,11 +47,17 @@ interface NLPData {
   entities?: Entity;
 }
 
-export const getAnswerForIntent = async (data: NLPData): Promise<string> => {
+export const RECORDS_PER_PAGE = 5;
+
+export const getAnswerForIntent = async (
+  data: NLPData,
+  req: Request
+): Promise<string> => {
   const intent = data.intents?.[0]?.name;
   const entities = data.entities || {};
 
   console.log("intent::", intent);
+  console.log("entities::", entities);
 
   switch (intent) {
     case "faq_attend_no_account":
@@ -75,6 +86,9 @@ export const getAnswerForIntent = async (data: NLPData): Promise<string> => {
 
     case "get_similar_events":
       return await getSimilarEventsAnswer(entities);
+
+    case "get_events_by_location":
+      return await getEventsByLocationAnswer(entities, req);
 
     default:
       return "Sorry, I couldn't find an answer to your question. Could you please rephrase or ask another question?";
@@ -162,7 +176,7 @@ export const getEventFeedback = async (eventId: string) => {
       select: "name email profileimage",
     })
     .sort({ createdAt: -1 })
-    .limit(5);
+    .limit(RECORDS_PER_PAGE);
 
   const totalFeedbackAndAverageRating = await Feedback.aggregate([
     { $match: { eventId } },
@@ -223,7 +237,7 @@ export const getEventsByCategoryAnswer = async (entities: Entity) => {
         $sort: { createdAt: -1 },
       },
       {
-        $limit: 5,
+        $limit: RECORDS_PER_PAGE,
       },
     ]);
 
@@ -287,7 +301,7 @@ export const getEventsByRatingAnswer = async (entities: Entity) => {
       $sort: { createdAt: -1 },
     },
     {
-      $limit: 5,
+      $limit: RECORDS_PER_PAGE,
     },
   ]);
 
@@ -318,7 +332,7 @@ export const getMostLikedEventsAnswer = async () => {
       $sort: { likesCount: -1 },
     },
     {
-      $limit: 5,
+      $limit: RECORDS_PER_PAGE,
     },
   ]);
 
@@ -369,7 +383,7 @@ export const getSimilarEventsAnswer = async (entities: Entity) => {
           $sort: { createdAt: -1 },
         },
         {
-          $limit: 5,
+          $limit: RECORDS_PER_PAGE,
         },
       ]);
 
@@ -391,5 +405,96 @@ export const getSimilarEventsAnswer = async (entities: Entity) => {
     }
   } else {
     return "Sorry, I couldn't find any event with the provided details. Please give me a proper event name.";
+  }
+};
+
+export const getEventsByLocationAnswer = async (
+  entities: Entity,
+  req: Request
+) => {
+  const location = entities["detail_type:location"]?.[0]?.value;
+
+  let dbEvents: EventType[] = [];
+
+  if (location) {
+    dbEvents = await Event.find({
+      "location.address": {
+        $regex: location,
+        $options: "i",
+      },
+    })
+      .sort({ createdAt: -1 })
+      .limit(RECORDS_PER_PAGE);
+  } else {
+    try {
+      const userId = getUserIdFromToken(req);
+
+      if (userId) {
+        const pipeline: any[] = [
+          { $match: { _id: new Types.ObjectId(userId) } },
+          {
+            $project: {
+              _id: 1,
+              latitude: 1,
+              longitude: 1,
+            },
+          },
+        ];
+
+        const userData: { latitude: string; longitude: string }[] =
+          await User.aggregate(pipeline);
+
+        if (userData.length && userData[0].latitude && userData[0].longitude) {
+          const distanceField = entities["wit$distance:distance"]?.[0]?.value;
+
+          const distance = Number(distanceField)
+            ? Number(distanceField) * 1000
+            : 25000;
+
+          dbEvents = await Event.aggregate([
+            {
+              $geoNear: {
+                near: {
+                  type: "Point",
+                  coordinates: [
+                    parseFloat(userData[0].longitude),
+                    parseFloat(userData[0].latitude),
+                  ],
+                },
+                distanceField: "distance",
+                spherical: true,
+                maxDistance: distance, // in meters
+              },
+            },
+            {
+              $sort: { distance: 1 },
+            },
+            {
+              $limit: RECORDS_PER_PAGE,
+            },
+          ]);
+        } else {
+          return "Sorry, you need to add your profile address to get events by location.";
+        }
+      } else {
+        return "Sorry, you must be logged in to get events by location.";
+      }
+    } catch (error) {
+      return "Sorry, you must be logged in to get events by location.";
+    }
+  }
+
+  if (dbEvents.length) {
+    const eventDetails = dbEvents.map(
+      (event) =>
+        `<b>${event.title}</b> </br> <b>Location:</b> ${event.location.address} </br> <b>Start Date:</b> ${new Date(
+          event.startDateTime
+        ).toLocaleString()} </br> <b>End Date:</b> ${new Date(
+          event.endDateTime
+        ).toLocaleString()} </br> ${event.distance ? `<b>Distance:</b> ${(event.distance / 1000).toFixed(2)} km` : ""}`
+    );
+    return eventDetails.join("</br> </br>");
+  } else {
+    return "Sorry, I couldn't find any event with the provided location.";
   }
 };
