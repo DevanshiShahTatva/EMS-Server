@@ -2,6 +2,8 @@ import { Request, Response } from "express";
 import Event from "../models/event.model";
 import Sponsorship from "../models/sponsorship.model";
 import { throwError, getUserIdFromToken } from "../helper/common";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+
 
 export const getUpcomingEvents = async (req: Request, res: Response) => {
   try {
@@ -164,3 +166,35 @@ export const updateSponsorshipStatus = async (req: Request, res: Response): Prom
     });
   }
 };
+
+export const generateSponsorBanner = async (req: Request, res: Response) => {
+  console.log("Request body:", req.body);
+
+  try {
+    const { bgUrl, centerText } = req.body;
+
+    const prompt = `
+      Create a high-quality banner image.
+      - Background: ${bgUrl}
+      - Center Text: "${centerText}"
+      
+      Overlay the text in a visually appealing way, center-aligned. Return only the image.
+    `;
+
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro-vision" });
+
+    const result = await model.generateContent([prompt]);
+    const response = await result.response;
+    const imageBase64 = await response.text(); // or other format Gemini returns
+
+    res.send({
+      success: true,
+      image: imageBase64,
+    });
+  } catch (err) {
+    console.error("Image generation failed:", err);
+    res.status(500).send({ success: false, message: "Image generation failed." });
+  }
+};
+
