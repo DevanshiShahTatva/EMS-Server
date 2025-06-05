@@ -52,8 +52,6 @@ export default function notificationHandler(
 
     const findUserInGroupChat = await GroupChat.aggregate(groupPipeline);
 
-    console.log("findUserInGroupChat:", findUserInGroupChat)
-
     findUserInPrivateChat.forEach((chat) => {
       const room = `private_${chat._id}`;
       socket.join(room);
