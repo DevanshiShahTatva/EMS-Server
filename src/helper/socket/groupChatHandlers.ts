@@ -122,6 +122,7 @@ export default function groupChatHandlers(io: Server, socket: AuthenticatedSocke
       });
 
       io.to(groupId).emit('receive_group_message', savedMessage);
+      socket.to(groupId).emit("chat_notification", savedMessage);
 
     } catch (error) {
       console.error('Err:', error);

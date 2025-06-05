@@ -1,6 +1,8 @@
 import { Server } from "socket.io";
 import { AuthenticatedSocket } from ".";
 import { io } from "../../server";
+import PrivateChat from "../../models/privateChat.model";
+import mongoose from "mongoose";
 
 const userSockets = new Map<string, string[]>();
 
@@ -26,8 +28,35 @@ export default function notificationHandler(io: Server, socket: AuthenticatedSoc
     }
   };
 
+  const initiateChatNotification = async () => {
+    const userId = new mongoose.Types.ObjectId(socket.userId || "");
+
+    const pipeline = [
+      {
+        $match: {
+          $or: [
+            {
+              sender: userId
+            },
+            {
+              receiver: userId
+            }
+          ]
+        }
+      }
+    ];
+    
+    const findUserInPrivateChat = await PrivateChat.aggregate(pipeline);
+    
+    findUserInPrivateChat.forEach((chat) => {
+      const room = `private_${chat._id}`;
+      socket.join(room);
+    });
+  };
+
   socket.on("authenticate", authHandler);
   socket.on("disconnect", disconnectHandler);
+  socket.on("initiate_chat_notification", initiateChatNotification);
 }
 
 export const sendNotificationToUser = async (userId: string, notification: any) => {
