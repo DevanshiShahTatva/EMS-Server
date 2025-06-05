@@ -33,7 +33,7 @@ export const getWitAiResponse = async (req: Request, res: Response) => {
 
     const data = await witRes.json();
 
-    const reply = await getAnswerForIntent(data);
+    const reply = await getAnswerForIntent(data, req);
 
     res.status(HTTP_STATUS_CODE.OK).json({ reply });
   } catch (error) {
