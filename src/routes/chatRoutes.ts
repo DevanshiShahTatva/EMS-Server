@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { validateToken } from "../middlewares/checkToken";
 import { getGroupMessages, groupChatList } from "../controllers/groupChatController";
-import { privateChatList, createPrivateChat, getPrivateMessages } from "../controllers/privateChatController";
+import { privateChatList, createPrivateChat, getPrivateMessages } from "../controllers/PrivateChatController";
 
 const router = Router();
 
