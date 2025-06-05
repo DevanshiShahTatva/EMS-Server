@@ -1,4 +1,5 @@
 import Event from "../models/event.model";
+import Feedback from "../models/feedback.model";
 
 interface Intent {
   name: string;
@@ -20,6 +21,7 @@ interface Ticket {
 }
 
 interface EventType {
+  _id: string;
   title: string;
   description: string;
   startDateTime: string;
@@ -29,6 +31,10 @@ interface EventType {
     address: string;
   };
   tickets: Ticket[];
+  category: {
+    _id: string;
+    name: string;
+  };
 }
 
 interface NLPData {
@@ -39,6 +45,8 @@ interface NLPData {
 export const getAnswerForIntent = async (data: NLPData): Promise<string> => {
   const intent = data.intents?.[0]?.name;
   const entities = data.entities || {};
+
+  console.log("intent::", intent);
 
   switch (intent) {
     case "faq_attend_no_account":
@@ -55,6 +63,18 @@ export const getAnswerForIntent = async (data: NLPData): Promise<string> => {
 
     case "event_details":
       return await getEventDetailAnswer(entities);
+
+    case "get_events_by_category":
+      return await getEventsByCategoryAnswer(entities);
+
+    case "get_events_by_rating":
+      return await getEventsByRatingAnswer(entities);
+
+    case "get_most_liked_events":
+      return await getMostLikedEventsAnswer();
+
+    case "get_similar_events":
+      return await getSimilarEventsAnswer(entities);
 
     default:
       return "Sorry, I couldn't find an answer to your question. Could you please rephrase or ask another question?";
@@ -77,13 +97,24 @@ export const getEventDetailAnswer = async (
 
   if (dbEvent.length > 0) {
     const event = dbEvent[0];
-    const detailType =
-      entities["detail_type:location"]?.[0]?.role ||
-      entities["detail_type:date"]?.[0]?.role ||
-      entities["detail_type:duration"]?.[0]?.role ||
-      entities["detail_type:price"]?.[0]?.role;
 
-    return getDBEventDetailAnswer(event, detailType);
+    const detail_type = ["date", "duration", "location", "price", "review"];
+
+    const request_details_type = detail_type
+      .map((type) => entities[`detail_type:${type}`]?.[0]?.role)
+      .filter((type) => type !== undefined);
+
+    if (request_details_type.length) {
+      const requestEventDetailsAnswer = await Promise.all(
+        request_details_type.map(
+          async (type) => await getDBEventDetailAnswer(event, type)
+        )
+      );
+
+      return requestEventDetailsAnswer.join("</br> </br>");
+    } else {
+      return `Here are the details of the event <b>${event.title}</b>:\n${event.description}`;
+    }
   } else {
     if (entities["event_name:event_name"]?.[0]?.value) {
       return `Sorry, I couldn't find any event with this name <b>${entities["event_name:event_name"]?.[0]?.value}</b>. Please check the spelling or try a different event name.`;
@@ -93,10 +124,10 @@ export const getEventDetailAnswer = async (
   }
 };
 
-export const getDBEventDetailAnswer = (
+export const getDBEventDetailAnswer = async (
   event: EventType,
   detailType: string | undefined
-): string => {
+): Promise<string> => {
   switch (detailType) {
     case "date":
       return `The event starts on <b>${new Date(event.startDateTime).toLocaleString()}</b> and ends on <b>${new Date(event.endDateTime).toLocaleString()}</b>.`;
@@ -110,11 +141,255 @@ export const getDBEventDetailAnswer = (
     case "price":
       const ticket = event.tickets.map(
         (ticket) =>
-          `The <b>${ticket.type.name}</b> ticket costs <b>₹${ticket.price}</b>. It includes: <b>${ticket.type.description}</b>.`
+          `The <b>${ticket.type.name}</b> ticket costs <b>₹${ticket.price}</b>. ${!!ticket.type.description ? "It includes: " + ticket.type.description + "." : ""}`
       );
-      return ticket.join("\n");
+      return ticket.join("</br>");
+
+    case "review":
+      return await getEventFeedback(event._id);
 
     default:
       return `Here are the details of the event <b>${event.title}</b>:\n${event.description}`;
+  }
+};
+
+export const getEventFeedback = async (eventId: string) => {
+  const feedbackResult = await Feedback.find({
+    eventId,
+  })
+    .populate({
+      path: "userId",
+      select: "name email profileimage",
+    })
+    .sort({ createdAt: -1 })
+    .limit(5);
+
+  const totalFeedbackAndAverageRating = await Feedback.aggregate([
+    { $match: { eventId } },
+    {
+      $group: {
+        _id: null,
+        averageRating: { $avg: "$rating" },
+        totalFeedback: { $sum: 1 },
+      },
+    },
+  ]);
+
+  const feedbackAnswer = feedbackResult.map(
+    (fb) => `
+        <b>User:</b> ${fb.userId ? fb.userId.name : "Anonymous User"} </br>
+        <b>Email:</b> ${fb.userId ? fb.userId.email : "Anonymous User"} </br>
+        <b>Rating:</b> ${fb.rating} </br>
+        <b>Description:</b> ${fb.description} </br>
+        <b>Created At:</b> ${fb.createdAt}`
+  );
+
+  const feedbackWithAverageRating =
+    `<b>Total Feedbacks:</b> ${totalFeedbackAndAverageRating[0]?.totalFeedback || 0}` +
+    "</br>" +
+    `<b>Average Rating:</b> ${totalFeedbackAndAverageRating[0]?.averageRating || 0}` +
+    "</br> </br>" +
+    feedbackAnswer.join("</br> </br>");
+
+  return feedbackWithAverageRating;
+};
+
+export const getEventsByCategoryAnswer = async (entities: Entity) => {
+  const category =
+    entities["event_category:event_category"]?.[0]?.value.toLowerCase();
+
+  let dbEvents: EventType[] = [];
+
+  if (category) {
+    dbEvents = await Event.aggregate([
+      {
+        $lookup: {
+          from: "ticketcategories",
+          localField: "category",
+          foreignField: "_id",
+          as: "category",
+        },
+      },
+      { $unwind: "$category" },
+      {
+        $match: {
+          "category.name": {
+            $regex: category,
+            $options: "i",
+          },
+        },
+      },
+      {
+        $sort: { createdAt: -1 },
+      },
+      {
+        $limit: 5,
+      },
+    ]);
+
+    if (dbEvents.length) {
+      const eventDetails = dbEvents.map(
+        (event) =>
+          `<b>${event.title}</b> </br> <b>Location:</b> ${event.location.address} </br> <b>Start Date:</b> ${new Date(
+            event.startDateTime
+          ).toLocaleString()} </br> <b>End Date:</b> ${new Date(
+            event.endDateTime
+          ).toLocaleString()} </br> <b>Category:</b> ${event.category.name}`
+      );
+
+      return eventDetails.join("</br> </br>");
+    } else {
+      return "Sorry, I couldn't find any event with the provided details. Please give me a proper event category.";
+    }
+  } else {
+    return "Sorry, I couldn't find any event with the provided details. Please give me a proper event category.";
+  }
+};
+
+export const getEventsByRatingAnswer = async (entities: Entity) => {
+  const number = Number(entities["wit$number:number"]?.[0]?.value || 5);
+
+  const dbEvents = await Feedback.aggregate([
+    {
+      $group: {
+        _id: "$eventId",
+        averageRating: { $avg: "$rating" },
+        totalRatings: { $sum: 1 },
+      },
+    },
+    {
+      $match: {
+        averageRating: { $gte: number },
+      },
+    },
+    {
+      $lookup: {
+        from: "events",
+        localField: "_id",
+        foreignField: "_id",
+        as: "event",
+      },
+    },
+    {
+      $unwind: "$event",
+    },
+    {
+      $replaceRoot: {
+        newRoot: {
+          $mergeObjects: [
+            "$event",
+            { averageRating: "$averageRating", totalRatings: "$totalRatings" },
+          ],
+        },
+      },
+    },
+    {
+      $sort: { createdAt: -1 },
+    },
+    {
+      $limit: 5,
+    },
+  ]);
+
+  if (dbEvents.length) {
+    const eventDetails = dbEvents.map(
+      (event) =>
+        `<b>${event.title}</b> </br> <b>Location:</b> ${event.location.address} </br> <b>Start Date:</b> ${new Date(
+          event.startDateTime
+        ).toLocaleString()} </br> <b>End Date:</b> ${new Date(
+          event.endDateTime
+        ).toLocaleString()} </br> <b>Average Rating:</b> ${event.averageRating} </br> <b>Total Ratings:</b> ${event.totalRatings}`
+    );
+
+    return eventDetails.join("</br> </br>");
+  } else {
+    return "Sorry, I couldn't find any event with the provided rating.";
+  }
+};
+
+export const getMostLikedEventsAnswer = async () => {
+  const dbEvents = await Event.aggregate([
+    {
+      $addFields: {
+        likesCount: { $size: { $ifNull: ["$likes", []] } },
+      },
+    },
+    {
+      $sort: { likesCount: -1 },
+    },
+    {
+      $limit: 5,
+    },
+  ]);
+
+  const mostLikedEvents = dbEvents.map(
+    (event) => `
+        <b>${event.title}</b> </br> <b>Location:</b> ${event.location.address} </br> <b>Start Date:</b> ${new Date(
+          event.startDateTime
+        ).toLocaleString()} </br> <b>End Date:</b> ${new Date(
+          event.endDateTime
+        ).toLocaleString()} </br>
+        <b>Likes:</b> ${event.likesCount}`
+  );
+
+  return mostLikedEvents.join("</br> </br>");
+};
+
+export const getSimilarEventsAnswer = async (entities: Entity) => {
+  let dbEvents: EventType[] = [];
+
+  if (entities["event_name:event_name"]?.[0]?.value) {
+    dbEvents = await Event.find({
+      title: {
+        $regex: entities["event_name:event_name"]?.[0]?.value,
+        $options: "i",
+      },
+    }).populate("category");
+
+    if (dbEvents.length > 0) {
+      const categoryId = dbEvents[0].category._id;
+
+      const dbSimilarEvents = await Event.aggregate([
+        {
+          $lookup: {
+            from: "ticketcategories",
+            localField: "category",
+            foreignField: "_id",
+            as: "category",
+          },
+        },
+        { $unwind: "$category" },
+        {
+          $match: {
+            "category._id": categoryId,
+            _id: { $ne: dbEvents[0]._id },
+          },
+        },
+        {
+          $sort: { createdAt: -1 },
+        },
+        {
+          $limit: 5,
+        },
+      ]);
+
+      if (dbSimilarEvents.length) {
+        const eventDetails = dbSimilarEvents.map(
+          (event) =>
+            `<b>${event.title}</b> </br> <b>Location:</b> ${event.location.address} </br> <b>Start Date:</b> ${new Date(
+              event.startDateTime
+            ).toLocaleString()} </br> <b>End Date:</b> ${new Date(
+              event.endDateTime
+            ).toLocaleString()} </br> <b>Category:</b> ${event.category.name}`
+        );
+        return eventDetails.join("</br> </br>");
+      } else {
+        return "Sorry, I couldn't find any similar event with the provided details. Please give me a other event name.";
+      }
+    } else {
+      return "Sorry, I couldn't find any event with the provided details. Please give me a proper event name.";
+    }
+  } else {
+    return "Sorry, I couldn't find any event with the provided details. Please give me a proper event name.";
   }
 };

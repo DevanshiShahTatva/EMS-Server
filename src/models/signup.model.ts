@@ -41,8 +41,7 @@ const signupSchema = new mongoose.Schema({
     type: String,
     enum: ["user", "organizer"],
     default: "user",
-  },
-  fcmTokens: { type: [String], default: [] }
+  }
 });
 
 signupSchema.set("toJSON", {

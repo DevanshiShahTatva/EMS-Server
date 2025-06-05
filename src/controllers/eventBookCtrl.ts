@@ -15,6 +15,9 @@ import PointTransaction from "../models/pointTransaction";
 import { CancelCharge } from "../models/cancelCharge.model";
 import Voucher from "../models/voucher.model";
 import { generateUniquePromoCode } from "../helper/generatePromoCode";
+import GroupChat from "../models/groupChat.model";
+import { io } from "../server";
+import Message from "../models/groupMessage.model";
 import { sendNotification } from "../services/notificationService";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -163,6 +166,43 @@ export const postTicketBook = async (req: Request, res: any) => {
       }
       voucher.used = true;
       await voucher.save({ session });
+    }
+
+    let group = await GroupChat.findOne({ event: eventId }).session(session);
+    if (!group) {
+      group = new GroupChat({
+        event: eventId,
+        members: [userId],
+        admin: userId
+      });
+      await group.save({ session });
+    } else if (!group.members.some((id: any) => id.equals(userId))) {
+      group.members.push(userId);
+      await group.save({ session });
+
+      const newMember = await User.findById(userId)
+        .select('name profileimage')
+        .lean() as any;
+
+      const systemMessage = new Message({
+        group: group._id,
+        isSystemMessage: true,
+        systemMessageData: { userId },
+        systemMessageType: 'user_joined',
+        content: `${newMember?.name ?? "New user"} joined`,
+        readBy: [userId]
+      });
+      await systemMessage.save({ session });
+
+      io.to(group._id.toString()).emit('group_member_added', {
+        groupId: group._id.toString(),
+        newMember: {
+          id: userId,
+          name: newMember?.name ?? "",
+          avatar: newMember?.profileimage?.url ?? null
+        }
+      });
+      io.to(group._id.toString()).emit('new_group_message', systemMessage);
     }
 
     await session.commitTransaction();
@@ -335,7 +375,7 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
     const getCharges = await CancelCharge.findOne();
 
     const charge = (getCharges.charge / 100) * booking.totalAmount;
-    const refundAmount =  Math.trunc(booking.totalAmount - charge);
+    const refundAmount = Math.trunc(booking.totalAmount - charge);
 
     // 7. No refund if pay amount is 0
     if (booking.totalAmount === 0) {
@@ -456,7 +496,7 @@ export const validateTicket = async (req: Request, res: Response) => {
         message: "This ticket has already been used to attend the event.",
       });
     }
-    
+
     const currentTime = new Date();
 
     // Ensure event is populated and not expired
