@@ -3,10 +3,14 @@ import { AuthenticatedSocket } from ".";
 import { io } from "../../server";
 import PrivateChat from "../../models/privateChat.model";
 import mongoose from "mongoose";
+import GroupChat from "../../models/groupChat.model";
 
 const userSockets = new Map<string, string[]>();
 
-export default function notificationHandler(io: Server, socket: AuthenticatedSocket) {
+export default function notificationHandler(
+  io: Server,
+  socket: AuthenticatedSocket
+) {
   const authHandler = () => {
     if (socket.userId) {
       const userSocketIds = userSockets.get(socket.userId) || [];
@@ -35,22 +39,28 @@ export default function notificationHandler(io: Server, socket: AuthenticatedSoc
       {
         $match: {
           $or: [
-            {
-              sender: userId
-            },
-            {
-              receiver: userId
-            }
-          ]
-        }
-      }
+            { sender: userId },
+            { receiver: userId },
+          ],
+        },
+      },
     ];
-    
+
+    const groupPipeline = [ { $match: { members: userId } } ];
+
     const findUserInPrivateChat = await PrivateChat.aggregate(pipeline);
-    
+
+    const findUserInGroupChat = await GroupChat.aggregate(groupPipeline);
+
+    console.log("findUserInGroupChat:", findUserInGroupChat)
+
     findUserInPrivateChat.forEach((chat) => {
       const room = `private_${chat._id}`;
       socket.join(room);
+    });
+
+    findUserInGroupChat.forEach((group) => {
+      socket.join(group._id.toString());
     });
   };
 
@@ -59,7 +69,10 @@ export default function notificationHandler(io: Server, socket: AuthenticatedSoc
   socket.on("initiate_chat_notification", initiateChatNotification);
 }
 
-export const sendNotificationToUser = async (userId: string, notification: any) => {
+export const sendNotificationToUser = async (
+  userId: string,
+  notification: any
+) => {
   try {
     io.to(userId).emit("notification", notification);
     return true;
@@ -68,4 +81,3 @@ export const sendNotificationToUser = async (userId: string, notification: any) 
     return false;
   }
 };
-
