@@ -170,8 +170,12 @@ export const createPrivateChat = async (req: Request, res: Response) => {
     const newChat = {
       id: privateChat._id,
       name: participant.name,
-      senderId: participant._id,
       image: participant.profileimage?.url ?? null,
+      status: "",
+      senderId: null,
+      lastMessage: null,
+      lastMessageSender: null,
+      lastMessageTime: null,
     }
 
     res.json({ success: true, userId, chat: newChat });
