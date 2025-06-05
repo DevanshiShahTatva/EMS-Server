@@ -32,6 +32,7 @@ interface EventType {
   };
   tickets: Ticket[];
   category: {
+    _id: string;
     name: string;
   };
 }
@@ -44,6 +45,8 @@ interface NLPData {
 export const getAnswerForIntent = async (data: NLPData): Promise<string> => {
   const intent = data.intents?.[0]?.name;
   const entities = data.entities || {};
+
+  console.log("intent::", intent);
 
   switch (intent) {
     case "faq_attend_no_account":
@@ -63,6 +66,15 @@ export const getAnswerForIntent = async (data: NLPData): Promise<string> => {
 
     case "get_events_by_category":
       return await getEventsByCategoryAnswer(entities);
+
+    case "get_events_by_rating":
+      return await getEventsByRatingAnswer(entities);
+
+    case "get_most_liked_events":
+      return await getMostLikedEventsAnswer();
+
+    case "get_similar_events":
+      return await getSimilarEventsAnswer(entities);
 
     default:
       return "Sorry, I couldn't find an answer to your question. Could you please rephrase or ask another question?";
@@ -207,6 +219,12 @@ export const getEventsByCategoryAnswer = async (entities: Entity) => {
           },
         },
       },
+      {
+        $sort: { createdAt: -1 },
+      },
+      {
+        $limit: 5,
+      },
     ]);
 
     if (dbEvents.length) {
@@ -225,5 +243,153 @@ export const getEventsByCategoryAnswer = async (entities: Entity) => {
     }
   } else {
     return "Sorry, I couldn't find any event with the provided details. Please give me a proper event category.";
+  }
+};
+
+export const getEventsByRatingAnswer = async (entities: Entity) => {
+  const number = Number(entities["wit$number:number"]?.[0]?.value || 5);
+
+  const dbEvents = await Feedback.aggregate([
+    {
+      $group: {
+        _id: "$eventId",
+        averageRating: { $avg: "$rating" },
+        totalRatings: { $sum: 1 },
+      },
+    },
+    {
+      $match: {
+        averageRating: { $gte: number },
+      },
+    },
+    {
+      $lookup: {
+        from: "events",
+        localField: "_id",
+        foreignField: "_id",
+        as: "event",
+      },
+    },
+    {
+      $unwind: "$event",
+    },
+    {
+      $replaceRoot: {
+        newRoot: {
+          $mergeObjects: [
+            "$event",
+            { averageRating: "$averageRating", totalRatings: "$totalRatings" },
+          ],
+        },
+      },
+    },
+    {
+      $sort: { createdAt: -1 },
+    },
+    {
+      $limit: 5,
+    },
+  ]);
+
+  if (dbEvents.length) {
+    const eventDetails = dbEvents.map(
+      (event) =>
+        `<b>${event.title}</b> </br> <b>Location:</b> ${event.location.address} </br> <b>Start Date:</b> ${new Date(
+          event.startDateTime
+        ).toLocaleString()} </br> <b>End Date:</b> ${new Date(
+          event.endDateTime
+        ).toLocaleString()} </br> <b>Average Rating:</b> ${event.averageRating} </br> <b>Total Ratings:</b> ${event.totalRatings}`
+    );
+
+    return eventDetails.join("</br> </br>");
+  } else {
+    return "Sorry, I couldn't find any event with the provided rating.";
+  }
+};
+
+export const getMostLikedEventsAnswer = async () => {
+  const dbEvents = await Event.aggregate([
+    {
+      $addFields: {
+        likesCount: { $size: { $ifNull: ["$likes", []] } },
+      },
+    },
+    {
+      $sort: { likesCount: -1 },
+    },
+    {
+      $limit: 5,
+    },
+  ]);
+
+  const mostLikedEvents = dbEvents.map(
+    (event) => `
+        <b>${event.title}</b> </br> <b>Location:</b> ${event.location.address} </br> <b>Start Date:</b> ${new Date(
+          event.startDateTime
+        ).toLocaleString()} </br> <b>End Date:</b> ${new Date(
+          event.endDateTime
+        ).toLocaleString()} </br>
+        <b>Likes:</b> ${event.likesCount}`
+  );
+
+  return mostLikedEvents.join("</br> </br>");
+};
+
+export const getSimilarEventsAnswer = async (entities: Entity) => {
+  let dbEvents: EventType[] = [];
+
+  if (entities["event_name:event_name"]?.[0]?.value) {
+    dbEvents = await Event.find({
+      title: {
+        $regex: entities["event_name:event_name"]?.[0]?.value,
+        $options: "i",
+      },
+    }).populate("category");
+
+    if (dbEvents.length > 0) {
+      const categoryId = dbEvents[0].category._id;
+
+      const dbSimilarEvents = await Event.aggregate([
+        {
+          $lookup: {
+            from: "ticketcategories",
+            localField: "category",
+            foreignField: "_id",
+            as: "category",
+          },
+        },
+        { $unwind: "$category" },
+        {
+          $match: {
+            "category._id": categoryId,
+            _id: { $ne: dbEvents[0]._id },
+          },
+        },
+        {
+          $sort: { createdAt: -1 },
+        },
+        {
+          $limit: 5,
+        },
+      ]);
+
+      if (dbSimilarEvents.length) {
+        const eventDetails = dbSimilarEvents.map(
+          (event) =>
+            `<b>${event.title}</b> </br> <b>Location:</b> ${event.location.address} </br> <b>Start Date:</b> ${new Date(
+              event.startDateTime
+            ).toLocaleString()} </br> <b>End Date:</b> ${new Date(
+              event.endDateTime
+            ).toLocaleString()} </br> <b>Category:</b> ${event.category.name}`
+        );
+        return eventDetails.join("</br> </br>");
+      } else {
+        return "Sorry, I couldn't find any similar event with the provided details. Please give me a other event name.";
+      }
+    } else {
+      return "Sorry, I couldn't find any event with the provided details. Please give me a proper event name.";
+    }
+  } else {
+    return "Sorry, I couldn't find any event with the provided details. Please give me a proper event name.";
   }
 };
