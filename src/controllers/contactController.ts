@@ -2,10 +2,11 @@ import { Request, Response } from 'express';
 import Contact from '../models/contact.model';
 import { appLogger } from '../helper/logger';
 import { sendContactConfirmationEmail, sendContactNotificationToAdmin } from '../helper/nodemailer';
-import { ApiResponse, throwError } from '../helper/common';
+import { ApiResponse, getUserIdFromToken, throwError } from '../helper/common';
 import { HTTP_STATUS_CODE } from '../utilits/enum';
 import mongoose from 'mongoose';
 import aiGeneratorService from '../services/ai-generator.service';
+import { sendNotification } from '../services/notificationService';
 
 export const submitContactForm = async (req: Request, res: Response) => {
     const log = appLogger.child({
@@ -14,6 +15,7 @@ export const submitContactForm = async (req: Request, res: Response) => {
     });
 
     try {
+        const userId = await getUserIdFromToken(req);
         const { name, email, subject, message } = req.body;
 
         // log.info('Creating new contact');
@@ -32,6 +34,20 @@ export const submitContactForm = async (req: Request, res: Response) => {
 
             // 2. Send notification to admin
             await sendContactNotificationToAdmin(email, name, subject, message);
+        }
+
+        // send notification to login user
+        if (userId) {
+            // send notification for submit feedback
+            setImmediate(() => {
+                sendNotification(userId, {
+                    title: "Query Submitted",
+                    body: `You have successfully submitted query`,
+                    data: {
+                        type: "query"
+                    }
+                });
+            });
         }
 
         // log.info('Contact form submitted successfully');
