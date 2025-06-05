@@ -87,52 +87,80 @@ export const getAllSponsorshipRequests = async (req: Request, res: Response) => 
 }
 
 export const updateSponsorshipStatus = async (req: Request, res: Response): Promise<void> => {
-   try {
+  try {
     const { requestId, status } = req.body;
 
     if (!requestId || !["approved", "rejected"].includes(status)) {
-      res.status(400).json({ message: "Invalid requestId or status" });
+      res.status(400).json({ 
+        success: false,
+        message: "Invalid requestId or status" 
+      });
       return;
     }
 
-    // Find sponsorship request by ID
     const sponsorshipRequest = await Sponsorship.findById(requestId);
     if (!sponsorshipRequest) {
-      res.status(404).json({ message: "Sponsorship request not found" });
+      res.status(404).json({ 
+        success: false,
+        message: "Sponsorship request not found" 
+      });
       return;
     }
 
-    // Update sponsorship request status
     sponsorshipRequest.status = status;
     await sponsorshipRequest.save();
 
-    // Update event's sponsors array
-    const updateOperation = status === "approved"
-  ? {
-      $addToSet: {
-        sponsors: {
-          orgId: sponsorshipRequest.organizerId.toString(),
-          status: "approved"
+    if (status === "approved") {
+      // Update existing sponsor or add if not exists
+      await Event.findByIdAndUpdate(
+        sponsorshipRequest.eventId,
+        {
+          $set: {
+            "sponsors.$[elem].status": "approved"
+          }
+        },
+        {
+          arrayFilters: [{ "elem.orgId": sponsorshipRequest.organizerId.toString() }],
+          new: true
         }
-      }
+      ).then(async (result) => {
+        // If no matching sponsor was found, add a new one
+        if (!result || result.sponsors.find((s:any) => s.orgId === sponsorshipRequest.organizerId.toString()) === undefined) {
+          await Event.findByIdAndUpdate(
+            sponsorshipRequest.eventId,
+            {
+              $addToSet: {
+                sponsors: {
+                  orgId: sponsorshipRequest.organizerId.toString(),
+                  status: "approved"
+                }
+              }
+            }
+          );
+        }
+      });
+    } else {
+      // For rejected status, remove the sponsor
+      await Event.findByIdAndUpdate(
+        sponsorshipRequest.eventId,
+        {
+          $pull: {
+            sponsors: { orgId: sponsorshipRequest.organizerId.toString() }
+          }
+        }
+      );
     }
-  : {
-      $pull: {
-        sponsors: { orgId: sponsorshipRequest.organizerId.toString() }
-      }
-    };
-
-    await Event.findByIdAndUpdate(
-      sponsorshipRequest.eventId,
-      updateOperation
-    );
 
     res.status(200).json({ 
+      success: true,
       message: `Request ${status} successfully`, 
-      sponsorshipRequest 
+      data: sponsorshipRequest 
     });
   } catch (error) {
     console.error("Error updating sponsorship status:", error);
-    res.status(500).json({ message: "Internal server error" });
+    res.status(500).json({ 
+      success: false,
+      message: "Internal server error" 
+    });
   }
 };
