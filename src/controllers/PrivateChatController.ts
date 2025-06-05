@@ -89,9 +89,9 @@ export const privateChatList = async (req: Request, res: Response) => {
     const chats = privateChats.map((chat) => ({
       id: chat._id,
       name: chat.participant.name,
-      senderId: chat.participant._id,
       image: chat.participant.profileimage?.url ?? null,
-      status: chat.lastMessage?.status ?? "", 
+      senderId: chat.lastMessage?.sender?._id ?? null,
+      status: chat.lastMessage?.status ?? "",
       lastMessage: chat.lastMessage?.content ?? null,
       lastMessageSender: chat.lastMessage?.sender?.name ?? null,
       lastMessageTime: chat.lastMessage?.createdAt ?? null,
@@ -113,6 +113,18 @@ export const createPrivateChat = async (req: Request, res: Response) => {
   try {
     const userId = getUserIdFromToken(req);
     const { memberId } = req.body;
+
+    if (!userId || !memberId) {
+      return throwError(res, "User ID and Member ID are required", HTTP_STATUS_CODE.BAD_REQUEST);
+    }
+
+    if (userId.toString() === memberId.toString()) {
+      return throwError(res, "You cannot create a chat with yourself", HTTP_STATUS_CODE.BAD_REQUEST);
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(userId) || !mongoose.Types.ObjectId.isValid(memberId)) {
+      return throwError(res, "Invalid User ID or Member ID", HTTP_STATUS_CODE.BAD_REQUEST);
+    }
 
     let privateChat = await PrivateChat.findOne({
       $or: [

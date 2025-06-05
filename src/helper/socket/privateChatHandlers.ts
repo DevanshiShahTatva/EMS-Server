@@ -82,7 +82,6 @@ export default function privateChatHandlers(io: Server, socket: AuthenticatedSoc
         const room = `private_${chatId}`;
         io.to(room).emit('receive_private_message', savedMessage);
 
-
       } catch (error) {
         await session.abortTransaction();
         throw error;
