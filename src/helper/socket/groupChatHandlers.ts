@@ -145,14 +145,20 @@ export default function groupChatHandlers(io: Server, socket: AuthenticatedSocke
   const typingMessage = ({ groupId }: { groupId: string }) => {
     socket.to(groupId).emit('user_typing', {
       groupId,
-      user: socket.userName,
+      user: {
+        id: socket.userId,
+        name: socket.userName
+      }
     });
   }
 
   const stopTypingMessage = ({ groupId }: { groupId: string }) => {
     socket.to(groupId).emit('user_stopped_typing', {
       groupId,
-      user: socket.userName,
+      user: {
+        id: socket.userId,
+        name: socket.userName
+      }
     });
   }
 
