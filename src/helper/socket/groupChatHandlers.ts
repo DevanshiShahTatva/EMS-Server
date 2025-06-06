@@ -123,6 +123,10 @@ export default function groupChatHandlers(io: Server, socket: AuthenticatedSocke
 
       io.to(groupId).emit('receive_group_message', savedMessage);
 
+      savedMessage = await savedMessage.populate('group');
+      savedMessage = await savedMessage.populate('group.event');
+      socket.to(groupId).emit("chat_notification", savedMessage);
+
     } catch (error) {
       console.error('Err:', error);
       socket.emit('error', 'Failed to send message');
