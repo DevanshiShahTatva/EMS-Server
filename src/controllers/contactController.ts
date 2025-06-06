@@ -7,6 +7,7 @@ import { HTTP_STATUS_CODE } from '../utilits/enum';
 import mongoose from 'mongoose';
 import aiGeneratorService from '../services/ai-generator.service';
 import { sendNotification } from '../services/notificationService';
+import User from '../models/signup.model';
 
 export const submitContactForm = async (req: Request, res: Response) => {
     const log = appLogger.child({
@@ -42,13 +43,27 @@ export const submitContactForm = async (req: Request, res: Response) => {
             setImmediate(() => {
                 sendNotification(userId, {
                     title: "Query Submitted",
-                    body: `You have successfully submitted query`,
+                    body: `You have successfully submitted query.`,
                     data: {
                         type: "query"
                     }
                 });
             });
         }
+
+        // send notification for update email
+        const findAdminUser = await User.findOne({ role: "admin" });
+        if(findAdminUser) {
+            setImmediate(() => {
+            sendNotification(findAdminUser._id, {
+                title: `Query Submitted`,
+                body: `${name} have been successfully submitted query.`,
+                data: {
+                type: "admin_query"
+                }
+            });
+            });
+        };
 
         // log.info('Contact form submitted successfully');
         res.status(201).json({

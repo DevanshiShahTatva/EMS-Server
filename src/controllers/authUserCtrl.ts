@@ -111,6 +111,21 @@ export const registerUser = async (req: Request, res: Response) => {
     );
     await session.commitTransaction();
     session.endSession();
+
+    // send notification for update email
+    const findAdminUser = await User.findOne({ role: "admin" });
+    if(findAdminUser) {
+      setImmediate(() => {
+        sendNotification(findAdminUser._id, {
+          title: `New ${body.role} register`,
+          body: `${name} has been successfully registered as ${body.role}.`,
+          data: {
+            type: "admin_user"
+          }
+        });
+      });
+    };
+
     rcResponse.message = "You are register successfully.";
     sendWelcomeEmail(email, name);
     return res.status(rcResponse.status).send(rcResponse);
@@ -126,7 +141,7 @@ export const loginUser = async (req: Request, res: Response) => {
     const rcResponse = new ApiResponse();
     const sort = { created: -1 };
     const body = req.body;
-    const { email, password, fcmToken } = body;
+    const { email, password } = body;
 
     // empty field validation
     if (!email || !password) {
@@ -137,15 +152,15 @@ export const loginUser = async (req: Request, res: Response) => {
       );
     }
 
+    const findUser = await findOne("User", { email: email }, sort);
+
     // check is admin user login
-    if (
-      email === process.env.ADMIN_EMAIL &&
-      password === process.env.ADMIN_PASSWORD
-    ) {
+    if (findUser.role === "admin") {
       const adminUser = {
-        name: "Event Manager",
-        email: "admin@evently.com",
-        role: "admin",
+        _id: findUser._id,
+        name: findUser.name,
+        email: findUser.email,
+        role: findUser.role || "admin",
       };
 
       const token = jwt.sign(adminUser, process.env.TOKEN_SECRET!, {
