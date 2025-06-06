@@ -17,6 +17,7 @@ interface IEditMessage {
 };
 
 export default function groupChatHandlers(io: Server, socket: AuthenticatedSocket) {
+
   const joinGroupChat = async ({ groupId }: { groupId: string }) => {
     if (!socket.userId || !mongoose.Types.ObjectId.isValid(groupId)) {
       socket.emit('error', 'Invalid user or group ID');
@@ -26,7 +27,7 @@ export default function groupChatHandlers(io: Server, socket: AuthenticatedSocke
     try {
       const group = await GroupChat.findOne({
         _id: groupId,
-        members: socket.userId
+        'members.user': socket.userId
       });
 
       if (!group) {
@@ -34,7 +35,22 @@ export default function groupChatHandlers(io: Server, socket: AuthenticatedSocke
         return;
       }
 
+      socket.activeGroupId = groupId;
+
       socket.join(groupId);
+
+      await GroupChat.updateOne(
+        { _id: groupId },
+        {
+          $set: {
+            'members.$[elem].unreadCount': 0,
+            'members.$[elem].timestamp': new Date(),
+          }
+        },
+        {
+          arrayFilters: [{ 'elem.user': socket.userId }],
+        }
+      );
 
       const recentMessages: any = await GroupMessage.find({ group: groupId })
         .sort({ createdAt: -1 })
@@ -71,7 +87,7 @@ export default function groupChatHandlers(io: Server, socket: AuthenticatedSocke
 
       await GroupChat.findByIdAndUpdate(
         groupId,
-        { $pull: { members: socket.userId } },
+        { $pull: { members: { user: socket.userId } } }
       );
 
       io.to(groupId).emit('group_member_removed', {
@@ -91,16 +107,16 @@ export default function groupChatHandlers(io: Server, socket: AuthenticatedSocke
   };
 
   const handleGroupMessage = async ({ groupId, content }: GroupMessageData) => {
-    if (!socket.userId || !content.trim()) {
+    if (!socket.userId || !content?.trim()) {
       socket.emit('error', 'Invalid message data');
       return;
     }
 
     try {
-      const group = await GroupChat.findOne({
+      const group: any = await GroupChat.findOne({
         _id: groupId,
-        members: socket.userId
-      });
+        'members.user': socket.userId
+      }).lean();
 
       if (!group) {
         socket.emit('error', 'No longer a group member');
@@ -117,28 +133,66 @@ export default function groupChatHandlers(io: Server, socket: AuthenticatedSocke
       let savedMessage = await message.save();
       savedMessage = await savedMessage.populate('sender', 'name profileimage');
 
-      await GroupChat.findByIdAndUpdate(groupId, {
-        lastMessage: savedMessage._id
-      });
+      const updateOperations: any = {
+        $set: {
+          'members.$[currentUser].unreadCount': 0,
+          'members.$[currentUser].timestamp': new Date(),
+          lastMessage: savedMessage._id
+        }
+      };
+
+      const socketsInRoom = await io.in(groupId).fetchSockets();
+      const connectedUserIds = socketsInRoom.filter(socket => (socket as any).activeGroupId === groupId).map(socket => (socket as any).userId);
+
+      if (connectedUserIds.length > 0) {
+        updateOperations.$inc = {
+          'members.$[notConnectedAndNotSender].unreadCount': 1
+        };
+      } else {
+        updateOperations.$inc = {
+          'members.$[notSender].unreadCount': 1
+        };
+      }
+
+      const arrayFilters: any[] = [{ 'currentUser.user': socket.userId }];
+
+      if (connectedUserIds.length > 0) {
+        arrayFilters.push({
+          'notConnectedAndNotSender.user': {
+            $ne: socket.userId,
+            $nin: connectedUserIds
+          }
+        });
+      } else {
+        arrayFilters.push({
+          'notSender.user': { $ne: socket.userId }
+        });
+      }
+
+      const updatedGroupChat = await GroupChat.findByIdAndUpdate(
+        groupId,
+        updateOperations,
+        {
+          arrayFilters,
+          new: true
+        }
+      );
 
       io.to(groupId).emit('receive_group_message', savedMessage);
+
+      updatedGroupChat.members.forEach((member: any) => {
+        if (member.user.toString() !== socket.userId) {
+          io.to(member.user.toString()).emit('updated_unread_count_change', {
+            type: 'group',
+            chatId: groupId,
+            unreadCount: member.unreadCount,
+          });
+        }
+      });
 
     } catch (error) {
       console.error('Err:', error);
       socket.emit('error', 'Failed to send message');
-    }
-  };
-
-  const joinUserGroups = async () => {
-    if (!socket.userId) return;
-
-    try {
-      const groups = await GroupChat.find({ members: socket.userId });
-      groups.forEach(group => {
-        socket.join(group._id.toString());
-      });
-    } catch (error) {
-      console.error('Err:', error);
     }
   };
 
@@ -226,12 +280,15 @@ export default function groupChatHandlers(io: Server, socket: AuthenticatedSocke
     }
   };
 
+  const closeGroupChat = async () => {
+    socket.activeGroupId = undefined;
+  }
+
   socket.on('join_group_chat', joinGroupChat);
   socket.on('group_member_typing', typingMessage);
   socket.on('group_member_stop_typing', stopTypingMessage);
   socket.on('send_group_message', handleGroupMessage);
   socket.on('edit_or_delete_message', editOrDeleteMessage);
   socket.on('leave_group_chat', leaveGroupChat);
-
-  joinUserGroups();
+  socket.on('close_group_chat', closeGroupChat);
 }
