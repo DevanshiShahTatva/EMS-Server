@@ -16,7 +16,17 @@ export const submitContactForm = async (req: Request, res: Response) => {
     });
 
     try {
-        const userId = await getUserIdFromToken(req);
+
+        let userId: string | null = null;
+
+        // Safely attempt to extract user ID if token exists
+        try {
+            userId = await getUserIdFromToken(req);
+        } catch (err) {
+            // No token or invalid token - ignore and proceed anonymously
+            userId = null;
+        }
+        
         const { name, email, subject, message } = req.body;
 
         // log.info('Creating new contact');
