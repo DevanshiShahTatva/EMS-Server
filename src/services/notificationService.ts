@@ -1,4 +1,4 @@
-import { sendNotificationToUser } from "../helper/socket/notificationHandler";
+import { sendNotificationToUser } from "../helper/socket";
 import Notification from "../models/notification.model";
 
 type NotificationPayload = {
