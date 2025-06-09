@@ -1,5 +1,6 @@
 import { Server, Socket } from 'socket.io';
 import { socketAuth } from './authMiddleware';
+import { io } from '../../server';
 import groupChatHandlers from './groupChatHandlers';
 import privateChatHandlers from './privateChatHandlers';
 
@@ -25,3 +26,13 @@ export default function initSocket(io: Server) {
     socket.on('disconnect', () => { });
   });
 }
+
+export const sendNotificationToUser = async (userId: string, notification: any) => {
+  try {
+    io.to(userId).emit("notification", notification);
+    return true;
+  } catch (error) {
+    console.error("Err:", error);
+    return false;
+  }
+};
