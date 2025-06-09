@@ -11,7 +11,7 @@ interface Intent {
 }
 
 interface Entity {
-  [key: string]: { value: string; role?: string }[];
+  [key: string]: { value: string; role?: string; body: string }[];
 }
 
 interface TicketType {
@@ -29,6 +29,7 @@ interface EventType {
   title: string;
   description: string;
   startDateTime: string;
+  images: { imageId: string; url: string }[];
   endDateTime: string;
   duration: string;
   location: {
@@ -39,15 +40,69 @@ interface EventType {
     _id: string;
     name: string;
   };
+  likesCount: number;
   distance: number;
+  totalFeedback: number;
+  averageRating: number;
+  _doc: EventType;
 }
 
 interface NLPData {
   intents?: Intent[];
   entities?: Entity;
+  text?: string;
 }
 
 export const RECORDS_PER_PAGE = 5;
+
+export const getEventCardList = (
+  dbEvent: EventType[],
+  isOnlyReview: boolean = false
+) => {
+  return `
+        <h2 class="text-md font-semibold mb-2">Here are the details of the event(s)</h2>
+        <div class="overflow-x-auto w-full">
+          <div class="flex gap-2 w-max">
+            ${dbEvent.map(
+              (event) => `<a
+                  href="/events/${event._id}" 
+                  key=${event._id}
+                  class="w-full max-w-60 bg-white border border-gray-300 rounded-xl shadow-sm p-2 flex-shrink-0 flex flex-col gap-2"
+                >
+                  <img
+                    src=${event.images[0].url}
+                    alt=${event.title}
+                    class="w-full h-24 object-cover rounded-md"
+                  />
+                  <p class="font-semibold text-sm">${event.title}</p>
+                  <p class="text-xs text-gray-500"> <b>Location:</b> </br> ${event.location.address}</p>
+                  <p class="text-xs text-gray-500"> <b>Start Date:</b> </br> ${new Date(
+                    event.startDateTime
+                  ).toLocaleString()}</p>
+                  ${
+                    isOnlyReview
+                      ? `
+                      <p class="text-xs text-gray-500"> <b>Total Feedbacks:</b> </br> ${event.totalFeedback}</p>
+                      <p class="text-xs text-gray-500"> <b>Average Rating:</b> </br> ${event.averageRating}</p>
+                      `
+                      : ""
+                  }
+                  ${
+                    event.likesCount
+                      ? `<p class="text-xs text-gray-500"> <b>Total Likes:</b> </br> ${event.likesCount}</p>`
+                      : ""
+                  }
+                  ${
+                    event.distance
+                      ? `<p class="text-xs text-gray-500"> <b>Distance:</b> </br> ${(event.distance / 1000).toFixed(2)}</p>`
+                      : ""
+                  }
+                </a>`
+            )}
+          </div>
+        </div>
+      `;
+};
 
 export const getAnswerForIntent = async (
   data: NLPData,
@@ -70,7 +125,12 @@ export const getAnswerForIntent = async (
       return 'You can book your tickets directly on our event page by clicking the "Get Tickets" button and following the prompts, or through our authorized ticketing partners.';
 
     case "faq_online_payment":
-      return "Absolutely. We partner with trusted payment providers like Stripe and Razorpay. All transactions are protected using advanced SSL encryption. Your payment information is never stored on our servers, ensuring maximum privacy and security.";
+      const question = data.text || "";
+      const isNegativeConcern =
+        /(leak|steal|fraud|hack|risk|unsafe|danger)/i.test(question);
+      return isNegativeConcern
+        ? "Your concern is valid. We use industry-standard encryption and secure gateways (like Stripe/Razorpay) to process payments. No card or personal details are stored on our servers. Your data is safe, and we’re fully compliant with PCI-DSS standards."
+        : "Absolutely. We partner with trusted payment providers like Stripe and Razorpay. All transactions are protected using advanced SSL encryption. Your payment information is never stored on our servers, ensuring maximum privacy and security.";
 
     case "event_details":
       return await getEventDetailAnswer(entities);
@@ -82,7 +142,7 @@ export const getAnswerForIntent = async (
       return await getEventsByRatingAnswer(entities);
 
     case "get_most_liked_events":
-      return await getMostLikedEventsAnswer();
+      return await getMostLikedEventsAnswer(entities);
 
     case "get_similar_events":
       return await getSimilarEventsAnswer(entities);
@@ -100,10 +160,10 @@ export const getEventDetailAnswer = async (
 ): Promise<string> => {
   let dbEvent: EventType[] = [];
 
-  if (entities["event_name:event_name"]?.[0]?.value) {
+  if (entities["event_name:event_name"]?.[0]?.body) {
     dbEvent = await Event.find({
       title: {
-        $regex: entities["event_name:event_name"]?.[0]?.value,
+        $regex: entities["event_name:event_name"]?.[0]?.body,
         $options: "i",
       },
     }).populate("tickets.type");
@@ -115,7 +175,15 @@ export const getEventDetailAnswer = async (
     const detail_type = ["date", "duration", "location", "price", "review"];
 
     const request_details_type = detail_type
-      .map((type) => entities[`detail_type:${type}`]?.[0]?.role)
+      .map((type) => {
+        if (
+          entities[`detail_type:${type}`]?.[0]?.role === "duration" &&
+          entities[`detail_type:${type}`]?.[0]?.body === "gujarat"
+        ) {
+          return undefined;
+        }
+        return entities[`detail_type:${type}`]?.[0]?.role;
+      })
       .filter((type) => type !== undefined);
 
     if (request_details_type.length) {
@@ -127,11 +195,11 @@ export const getEventDetailAnswer = async (
 
       return requestEventDetailsAnswer.join("</br> </br>");
     } else {
-      return `Here are the details of the event <b>${event.title}</b>:\n${event.description}`;
+      return getEventCardList([event]);
     }
   } else {
-    if (entities["event_name:event_name"]?.[0]?.value) {
-      return `Sorry, I couldn't find any event with this name <b>${entities["event_name:event_name"]?.[0]?.value}</b>. Please check the spelling or try a different event name.`;
+    if (entities["event_name:event_name"]?.[0]?.body) {
+      return `Sorry, I couldn't find any event with this name <b>${entities["event_name:event_name"]?.[0]?.body}</b>. Please check the spelling or try a different event name.`;
     } else {
       return "Sorry, I couldn't find any event with the provided details. Please give me a proper event name.";
     }
@@ -160,26 +228,16 @@ export const getDBEventDetailAnswer = async (
       return ticket.join("</br>");
 
     case "review":
-      return await getEventFeedback(event._id);
+      return await getEventFeedback(event);
 
     default:
-      return `Here are the details of the event <b>${event.title}</b>:\n${event.description}`;
+      return getEventCardList([event]);
   }
 };
 
-export const getEventFeedback = async (eventId: string) => {
-  const feedbackResult = await Feedback.find({
-    eventId,
-  })
-    .populate({
-      path: "userId",
-      select: "name email profileimage",
-    })
-    .sort({ createdAt: -1 })
-    .limit(RECORDS_PER_PAGE);
-
+export const getEventFeedback = async (event: EventType) => {
   const totalFeedbackAndAverageRating = await Feedback.aggregate([
-    { $match: { eventId } },
+    { $match: { eventId: event._id } },
     {
       $group: {
         _id: null,
@@ -189,28 +247,23 @@ export const getEventFeedback = async (eventId: string) => {
     },
   ]);
 
-  const feedbackAnswer = feedbackResult.map(
-    (fb) => `
-        <b>User:</b> ${fb.userId ? fb.userId.name : "Anonymous User"} </br>
-        <b>Email:</b> ${fb.userId ? fb.userId.email : "Anonymous User"} </br>
-        <b>Rating:</b> ${fb.rating} </br>
-        <b>Description:</b> ${fb.description} </br>
-        <b>Created At:</b> ${fb.createdAt}`
+  const feedbackWithAverageRating = getEventCardList(
+    [
+      {
+        ...event._doc,
+        totalFeedback: totalFeedbackAndAverageRating[0]?.totalFeedback || 0,
+        averageRating: totalFeedbackAndAverageRating[0]?.averageRating || 0,
+      },
+    ],
+    true
   );
-
-  const feedbackWithAverageRating =
-    `<b>Total Feedbacks:</b> ${totalFeedbackAndAverageRating[0]?.totalFeedback || 0}` +
-    "</br>" +
-    `<b>Average Rating:</b> ${totalFeedbackAndAverageRating[0]?.averageRating || 0}` +
-    "</br> </br>" +
-    feedbackAnswer.join("</br> </br>");
 
   return feedbackWithAverageRating;
 };
 
 export const getEventsByCategoryAnswer = async (entities: Entity) => {
   const category =
-    entities["event_category:event_category"]?.[0]?.value.toLowerCase();
+    entities["event_category:event_category"]?.[0]?.body.toLowerCase();
 
   let dbEvents: EventType[] = [];
 
@@ -242,16 +295,9 @@ export const getEventsByCategoryAnswer = async (entities: Entity) => {
     ]);
 
     if (dbEvents.length) {
-      const eventDetails = dbEvents.map(
-        (event) =>
-          `<b>${event.title}</b> </br> <b>Location:</b> ${event.location.address} </br> <b>Start Date:</b> ${new Date(
-            event.startDateTime
-          ).toLocaleString()} </br> <b>End Date:</b> ${new Date(
-            event.endDateTime
-          ).toLocaleString()} </br> <b>Category:</b> ${event.category.name}`
-      );
+      const eventDetails = getEventCardList(dbEvents);
 
-      return eventDetails.join("</br> </br>");
+      return eventDetails;
     } else {
       return "Sorry, I couldn't find any event with the provided details. Please give me a proper event category.";
     }
@@ -261,7 +307,21 @@ export const getEventsByCategoryAnswer = async (entities: Entity) => {
 };
 
 export const getEventsByRatingAnswer = async (entities: Entity) => {
-  const number = Number(entities["wit$number:number"]?.[0]?.value || 5);
+  const comparison =
+    entities["rating_comparison:more"]?.[0]?.role ||
+    entities["rating_comparison:less"]?.[0]?.role ||
+    "more";
+
+  const number = Number(entities["wit$number:number"]?.[0]?.value || 0);
+
+  let matchAverageRating = {};
+
+  if (number) {
+    matchAverageRating = {
+      averageRating:
+        comparison === "more" ? { $gte: number } : { $lte: number },
+    };
+  }
 
   const dbEvents = await Feedback.aggregate([
     {
@@ -272,9 +332,7 @@ export const getEventsByRatingAnswer = async (entities: Entity) => {
       },
     },
     {
-      $match: {
-        averageRating: { $gte: number },
-      },
+      $match: matchAverageRating,
     },
     {
       $lookup: {
@@ -298,7 +356,7 @@ export const getEventsByRatingAnswer = async (entities: Entity) => {
       },
     },
     {
-      $sort: { createdAt: -1 },
+      $sort: { averageRating: comparison === "more" ? -1 : 1 },
     },
     {
       $limit: RECORDS_PER_PAGE,
@@ -306,22 +364,36 @@ export const getEventsByRatingAnswer = async (entities: Entity) => {
   ]);
 
   if (dbEvents.length) {
-    const eventDetails = dbEvents.map(
-      (event) =>
-        `<b>${event.title}</b> </br> <b>Location:</b> ${event.location.address} </br> <b>Start Date:</b> ${new Date(
-          event.startDateTime
-        ).toLocaleString()} </br> <b>End Date:</b> ${new Date(
-          event.endDateTime
-        ).toLocaleString()} </br> <b>Average Rating:</b> ${event.averageRating} </br> <b>Total Ratings:</b> ${event.totalRatings}`
+    const eventDetails = getEventCardList(
+      dbEvents.map((event) => ({
+        ...event,
+        totalFeedback: event.totalRatings,
+      })),
+      true
     );
 
-    return eventDetails.join("</br> </br>");
+    return eventDetails;
   } else {
     return "Sorry, I couldn't find any event with the provided rating.";
   }
 };
 
-export const getMostLikedEventsAnswer = async () => {
+export const getMostLikedEventsAnswer = async (entities: Entity) => {
+  const comparison =
+    entities["rating_comparison:more"]?.[0]?.role ||
+    entities["rating_comparison:less"]?.[0]?.role ||
+    "more";
+
+  const number = Number(entities["wit$number:number"]?.[0]?.value || 0);
+
+  let matchLikesCount = {};
+
+  if (number) {
+    matchLikesCount = {
+      likesCount: comparison === "more" ? { $gte: number } : { $lte: number },
+    };
+  }
+
   const dbEvents = await Event.aggregate([
     {
       $addFields: {
@@ -329,33 +401,28 @@ export const getMostLikedEventsAnswer = async () => {
       },
     },
     {
-      $sort: { likesCount: -1 },
+      $match: matchLikesCount,
+    },
+    {
+      $sort: { likesCount: comparison === "more" ? -1 : 1 },
     },
     {
       $limit: RECORDS_PER_PAGE,
     },
   ]);
 
-  const mostLikedEvents = dbEvents.map(
-    (event) => `
-        <b>${event.title}</b> </br> <b>Location:</b> ${event.location.address} </br> <b>Start Date:</b> ${new Date(
-          event.startDateTime
-        ).toLocaleString()} </br> <b>End Date:</b> ${new Date(
-          event.endDateTime
-        ).toLocaleString()} </br>
-        <b>Likes:</b> ${event.likesCount}`
-  );
+  const mostLikedEvents = getEventCardList(dbEvents);
 
-  return mostLikedEvents.join("</br> </br>");
+  return mostLikedEvents;
 };
 
 export const getSimilarEventsAnswer = async (entities: Entity) => {
   let dbEvents: EventType[] = [];
 
-  if (entities["event_name:event_name"]?.[0]?.value) {
+  if (entities["event_name:event_name"]?.[0]?.body) {
     dbEvents = await Event.find({
       title: {
-        $regex: entities["event_name:event_name"]?.[0]?.value,
+        $regex: entities["event_name:event_name"]?.[0]?.body,
         $options: "i",
       },
     }).populate("category");
@@ -388,15 +455,8 @@ export const getSimilarEventsAnswer = async (entities: Entity) => {
       ]);
 
       if (dbSimilarEvents.length) {
-        const eventDetails = dbSimilarEvents.map(
-          (event) =>
-            `<b>${event.title}</b> </br> <b>Location:</b> ${event.location.address} </br> <b>Start Date:</b> ${new Date(
-              event.startDateTime
-            ).toLocaleString()} </br> <b>End Date:</b> ${new Date(
-              event.endDateTime
-            ).toLocaleString()} </br> <b>Category:</b> ${event.category.name}`
-        );
-        return eventDetails.join("</br> </br>");
+        const eventDetails = getEventCardList(dbSimilarEvents);
+        return eventDetails;
       } else {
         return "Sorry, I couldn't find any similar event with the provided details. Please give me a other event name.";
       }
@@ -412,16 +472,21 @@ export const getEventsByLocationAnswer = async (
   entities: Entity,
   req: Request
 ) => {
-  const location = entities["detail_type:location"]?.[0]?.value;
+  const location = entities["detail_type:location"]?.[0]?.body;
+  const isOutside =
+    entities["location_negation:location_negation"]?.[0]?.role ===
+    "location_negation";
 
   let dbEvents: EventType[] = [];
 
   if (location) {
     dbEvents = await Event.find({
-      "location.address": {
-        $regex: location,
-        $options: "i",
-      },
+      "location.address": isOutside
+        ? { $not: { $regex: location, $options: "i" } }
+        : {
+            $regex: location,
+            $options: "i",
+          },
     })
       .sort({ createdAt: -1 })
       .limit(RECORDS_PER_PAGE);
@@ -485,15 +550,8 @@ export const getEventsByLocationAnswer = async (
   }
 
   if (dbEvents.length) {
-    const eventDetails = dbEvents.map(
-      (event) =>
-        `<b>${event.title}</b> </br> <b>Location:</b> ${event.location.address} </br> <b>Start Date:</b> ${new Date(
-          event.startDateTime
-        ).toLocaleString()} </br> <b>End Date:</b> ${new Date(
-          event.endDateTime
-        ).toLocaleString()} </br> ${event.distance ? `<b>Distance:</b> ${(event.distance / 1000).toFixed(2)} km` : ""}`
-    );
-    return eventDetails.join("</br> </br>");
+    const eventDetails = getEventCardList(dbEvents);
+    return eventDetails;
   } else {
     return "Sorry, I couldn't find any event with the provided location.";
   }

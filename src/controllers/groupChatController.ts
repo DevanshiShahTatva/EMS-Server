@@ -3,13 +3,15 @@ import mongoose from 'mongoose';
 import { getUserIdFromToken, throwError } from "../helper/common";
 import { HTTP_STATUS_CODE } from "../utilits/enum";
 import GroupChat from "../models/groupChat.model";
-import Message from "../models/groupMessage.model";
+import GroupMessage from "../models/groupMessage.model";
 
 export const groupChatList = async (req: Request, res: Response) => {
   try {
     const userId = getUserIdFromToken(req);
+    const objectIdUserId = new mongoose.Types.ObjectId(userId);
+
     const groups = await GroupChat.aggregate([
-      { $match: { members: new mongoose.Types.ObjectId(userId) } },
+      { $match: { 'members.user': objectIdUserId } },
       { $sort: { updatedAt: -1 } },
       {
         $lookup: {
@@ -28,7 +30,6 @@ export const groupChatList = async (req: Request, res: Response) => {
           foreignField: '_id',
           as: 'lastMessage',
           pipeline: [
-            { $limit: 1 },
             {
               $lookup: {
                 from: 'users',
@@ -44,12 +45,77 @@ export const groupChatList = async (req: Request, res: Response) => {
       },
       { $unwind: { path: '$lastMessage', preserveNullAndEmptyArrays: true } },
       {
+        $addFields: { originalMembers: '$members' }
+      },
+      {
         $lookup: {
           from: 'users',
-          localField: 'members',
-          foreignField: '_id',
-          as: 'members',
-          pipeline: [{ $project: { name: 1, 'profileimage.url': 1 } }]
+          let: { userIds: '$originalMembers.user' },
+          pipeline: [
+            { $match: { $expr: { $in: ['$_id', '$$userIds'] } } },
+            { $project: { name: 1, 'profileimage.url': 1 } }
+          ],
+          as: 'userInfos'
+        }
+      },
+      {
+        $addFields: {
+          members: {
+            $map: {
+              input: '$originalMembers',
+              as: 'member',
+              in: {
+                $mergeObjects: [
+                  '$$member',
+                  {
+                    $arrayElemAt: [
+                      {
+                        $filter: {
+                          input: '$userInfos',
+                          as: 'u',
+                          cond: { $eq: ['$$u._id', '$$member.user'] }
+                        }
+                      },
+                      0
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        $addFields: {
+          unreadCount: {
+            $ifNull: [
+              {
+                $first: {
+                  $map: {
+                    input: {
+                      $filter: {
+                        input: '$originalMembers',
+                        as: 'm',
+                        cond: { $eq: ['$$m.user', objectIdUserId] }
+                      }
+                    },
+                    as: 'me',
+                    in: '$$me.unreadCount'
+                  }
+                }
+              },
+              0
+            ]
+          }
+        }
+      },
+      {
+        $project: {
+          _id: 1,
+          event: 1,
+          members: 1,
+          lastMessage: 1,
+          unreadCount: 1
         }
       }
     ]);
@@ -62,6 +128,7 @@ export const groupChatList = async (req: Request, res: Response) => {
         name: member.name ?? "",
         avatar: member.profileimage?.url ?? null
       })),
+      unreadCount: group.unreadCount,
       icon: group.event?.images?.[0]?.url ?? null,
       senderId: group.lastMessage?.sender?._id ?? null,
       status: group.lastMessage?.status ?? "",
@@ -71,6 +138,7 @@ export const groupChatList = async (req: Request, res: Response) => {
     }));
 
     res.json({ success: true, userId, data: groupData });
+
   } catch (err) {
     console.log('Err', err);
     return throwError(
@@ -94,7 +162,7 @@ export const getGroupMessages = async (req: Request, res: Response) => {
 
     const isMember = await GroupChat.exists({
       _id: groupId,
-      members: userId
+      'members.user': userId
     });
 
     if (!isMember) {
@@ -107,7 +175,7 @@ export const getGroupMessages = async (req: Request, res: Response) => {
       query.createdAt = { $lt: new Date(before as string) };
     }
 
-    const messages: any = await Message.find(query)
+    const messages: any = await GroupMessage.find(query)
       .sort({ createdAt: -1 })
       .limit(Number(limit))
       .populate('sender', 'name profileimage')

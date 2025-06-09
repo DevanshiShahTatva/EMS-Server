@@ -6,22 +6,25 @@ const groupMessageSchema = new mongoose.Schema({
     ref: 'User',
     required: function (this: any) {
       return !this.isSystemMessage;
-    }
+    },
+    index: true
   },
   group: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'GroupChat',
     required: function (this: any) {
       return !this.privateChat && !this.isSystemMessage;
-    }
+    },
+    index: true
   },
   content: { type: String, required: true, trim: true },
   status: {
     type: String,
-    enum: ['edited', 'deleted']
+    enum: ['edited', 'deleted'],
+    index: true
   },
   readBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
-  isSystemMessage: { type: Boolean },
+  isSystemMessage: { type: Boolean, index: true },
   systemMessageType: {
     type: String,
     enum: ['user_joined', 'user_left', 'group_created'],
@@ -43,7 +46,6 @@ const groupMessageSchema = new mongoose.Schema({
 
 groupMessageSchema.index({ group: 1, createdAt: -1 });
 groupMessageSchema.index({ sender: 1, createdAt: -1 });
-groupMessageSchema.index({ isSystemMessage: 1 });
 
 const GroupMessage = mongoose.models.GroupMessage || mongoose.model('GroupMessage', groupMessageSchema);
 
