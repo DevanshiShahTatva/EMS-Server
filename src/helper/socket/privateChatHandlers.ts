@@ -119,10 +119,7 @@ export default function privateChatHandlers(io: Server, socket: AuthenticatedSoc
 
       await Promise.all([
         PrivateChat.updateOne({ _id: chatId }, updateOperation, { session }),
-        io.to(room).emit('receive_private_message', savedMessage),
-        ...(otherUserConnected ? [] : [
-          io.to(otherUserId.toString()).emit('chat_notification', savedMessage)
-        ])
+        io.to(room).emit('receive_private_message', savedMessage)
       ]);
 
       await session.commitTransaction();
@@ -146,6 +143,8 @@ export default function privateChatHandlers(io: Server, socket: AuthenticatedSoc
         lastMessageTime: updatedChat.lastMessage?.createdAt ?? null,
         unreadCount: isSender ? updatedChat.receiverUnreadCount : updatedChat.senderUnreadCount,
       });
+
+      io.to(otherUserId.toString()).emit('chat_notification', savedMessage);
 
     } catch (error) {
       await session.abortTransaction();
