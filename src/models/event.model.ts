@@ -153,6 +153,9 @@ const EventSchema = new Schema<IEvent>(
       type: String,
       enum: ["pending", "approved", "rejected"], // customize as needed
       default: "pending"
+    }, 
+    image: {
+      type: String,
     }
   }]
 

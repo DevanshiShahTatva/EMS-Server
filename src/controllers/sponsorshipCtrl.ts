@@ -4,7 +4,6 @@ import Sponsorship from "../models/sponsorship.model";
 import { throwError, getUserIdFromToken } from "../helper/common";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-
 export const getUpcomingEvents = async (req: Request, res: Response) => {
   try {
     const currentDate = new Date();
@@ -24,7 +23,7 @@ export const getUpcomingEvents = async (req: Request, res: Response) => {
 
 export const requestSponsorship = async (req: Request, res: Response) => {
   try {
-    const { eventId } = req.body;
+    const { eventId, image } = req.body;
     const organizerId = getUserIdFromToken(req);
 
     if (!eventId || !organizerId) {
@@ -49,30 +48,28 @@ export const requestSponsorship = async (req: Request, res: Response) => {
     const request = new Sponsorship({
       eventId,
       organizerId,
-      status: 'pending',
+      status: "pending",
+      image,
     });
 
     await request.save();
 
     // Add to event's sponsors array with pending status
-    await Event.findByIdAndUpdate(
-      eventId,
-      {
-        $addToSet: {
-          sponsors: {
-            orgId: organizerId,
-            status: "pending"
-          }
-        }
-      }
-    );
+    await Event.findByIdAndUpdate(eventId, {
+      $addToSet: {
+        sponsors: {
+          orgId: organizerId,
+          status: "pending",
+          image,
+        },
+      },
+    });
 
     res.status(201).json({
       success: true,
       message: "Sponsorship request submitted",
       data: request,
     });
-
   } catch (error) {
     return throwError(res, "Failed to create sponsorship request", 400);
   }
@@ -80,31 +77,31 @@ export const requestSponsorship = async (req: Request, res: Response) => {
 
 export const getAllSponsorshipRequests = async (req: Request, res: Response) => {
   try {
-    const requests = await Sponsorship.find().sort({ createdAt: -1 })
-    res.status(200).json({ success: true, data: requests })
+    const requests = await Sponsorship.find().sort({ createdAt: -1 });
+    res.status(200).json({ success: true, data: requests });
   } catch (error) {
-    console.error('Error fetching sponsorship requests:', error)
-    res.status(500).json({ success: false, message: 'Internal Server Error' })
+    console.error("Error fetching sponsorship requests:", error);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
   }
-}
+};
 
 export const updateSponsorshipStatus = async (req: Request, res: Response): Promise<void> => {
   try {
     const { requestId, status } = req.body;
 
     if (!requestId || !["approved", "rejected"].includes(status)) {
-      res.status(400).json({ 
+      res.status(400).json({
         success: false,
-        message: "Invalid requestId or status" 
+        message: "Invalid requestId or status",
       });
       return;
     }
 
     const sponsorshipRequest = await Sponsorship.findById(requestId);
     if (!sponsorshipRequest) {
-      res.status(404).json({ 
+      res.status(404).json({
         success: false,
-        message: "Sponsorship request not found" 
+        message: "Sponsorship request not found",
       });
       return;
     }
@@ -118,51 +115,49 @@ export const updateSponsorshipStatus = async (req: Request, res: Response): Prom
         sponsorshipRequest.eventId,
         {
           $set: {
-            "sponsors.$[elem].status": "approved"
-          }
+            "sponsors.$[elem].status": "approved",
+          },
         },
         {
           arrayFilters: [{ "elem.orgId": sponsorshipRequest.organizerId.toString() }],
-          new: true
+          new: true,
         }
       ).then(async (result) => {
         // If no matching sponsor was found, add a new one
-        if (!result || result.sponsors.find((s:any) => s.orgId === sponsorshipRequest.organizerId.toString()) === undefined) {
-          await Event.findByIdAndUpdate(
-            sponsorshipRequest.eventId,
-            {
-              $addToSet: {
-                sponsors: {
-                  orgId: sponsorshipRequest.organizerId.toString(),
-                  status: "approved"
-                }
-              }
-            }
-          );
+        if (
+          !result ||
+          result.sponsors.find((s: any) => s.orgId === sponsorshipRequest.organizerId.toString()) === undefined
+        ) {
+          await Event.findByIdAndUpdate(sponsorshipRequest.eventId, {
+            $addToSet: {
+              sponsors: {
+                orgId: sponsorshipRequest.organizerId.toString(),
+                status: "approved",
+                image: sponsorshipRequest.image,
+              },
+            },
+          });
         }
       });
     } else {
       // For rejected status, remove the sponsor
-      await Event.findByIdAndUpdate(
-        sponsorshipRequest.eventId,
-        {
-          $pull: {
-            sponsors: { orgId: sponsorshipRequest.organizerId.toString() }
-          }
-        }
-      );
+      await Event.findByIdAndUpdate(sponsorshipRequest.eventId, {
+        $pull: {
+          sponsors: { orgId: sponsorshipRequest.organizerId.toString() },
+        },
+      });
     }
 
-    res.status(200).json({ 
+    res.status(200).json({
       success: true,
-      message: `Request ${status} successfully`, 
-      data: sponsorshipRequest 
+      message: `Request ${status} successfully`,
+      data: sponsorshipRequest,
     });
   } catch (error) {
     console.error("Error updating sponsorship status:", error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: "Internal server error" 
+      message: "Internal server error",
     });
   }
 };
@@ -197,4 +192,3 @@ export const generateSponsorBanner = async (req: Request, res: Response) => {
     res.status(500).send({ success: false, message: "Image generation failed." });
   }
 };
-

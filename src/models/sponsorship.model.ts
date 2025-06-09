@@ -11,6 +11,9 @@ const SponsorshipSchema = new mongoose.Schema({
     ref: 'Organizer', // or User
     required: true
   },
+  image: {
+    type: String, 
+  },
   status: {
     type: String,
     enum: ['pending', 'approved', 'rejected'],
