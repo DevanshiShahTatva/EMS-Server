@@ -14,10 +14,7 @@ export const privateChatList = async (req: Request, res: Response) => {
       {
         $match: {
           $or: [
-            {
-              sender: userId,
-              senderVisible: true
-            },
+            { sender: userId, senderVisible: true },
             {
               receiver: userId,
               $or: [
@@ -29,6 +26,17 @@ export const privateChatList = async (req: Request, res: Response) => {
         }
       },
       { $sort: { updatedAt: -1 } },
+      {
+        $addFields: {
+          userRole: {
+            $cond: [
+              { $eq: ["$sender", userId] },
+              "sender",
+              "receiver"
+            ]
+          }
+        }
+      },
       {
         $lookup: {
           from: "privatemessages",
@@ -75,11 +83,19 @@ export const privateChatList = async (req: Request, res: Response) => {
         $project: {
           _id: 1,
           lastMessage: 1,
+          userRole: 1,
           participant: {
             $cond: [
               { $eq: ["$sender", userId] },
               "$receiverInfo",
               "$senderInfo"
+            ]
+          },
+          unreadCount: {
+            $cond: [
+              { $eq: ["$userRole", "sender"] },
+              "$senderUnreadCount",
+              "$receiverUnreadCount"
             ]
           }
         }
@@ -90,6 +106,7 @@ export const privateChatList = async (req: Request, res: Response) => {
       id: chat._id,
       name: chat.participant.name,
       image: chat.participant.profileimage?.url ?? null,
+      unreadCount: chat.unreadCount ?? 0,
       senderId: chat.lastMessage?.sender?._id ?? null,
       status: chat.lastMessage?.status ?? "",
       lastMessage: chat.lastMessage?.content ?? null,
@@ -139,6 +156,8 @@ export const createPrivateChat = async (req: Request, res: Response) => {
         receiver: memberId,
         senderVisible: true,
         receiverVisible: false,
+        senderUnreadCount: 0,
+        receiverUnreadCount: 0,
         hasMessages: false
       });
     } else {

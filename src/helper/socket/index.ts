@@ -8,6 +8,7 @@ export interface AuthenticatedSocket extends Socket {
   userId?: string;
   userName?: string;
   activeGroupId?: string;
+  activeChatId?: string;
 }
 
 export default function initSocket(io: Server) {
