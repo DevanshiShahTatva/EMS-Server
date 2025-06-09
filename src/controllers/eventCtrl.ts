@@ -58,7 +58,14 @@ export const postEvent = async (req: Request, res: Response) => {
 export const getEvents = async (req: Request, res: Response) => {
   try {
     const rcResponse = new ApiResponse();
-    const userId = getUserIdFromToken(req);
+    // Safe token extraction
+    let userId: string | null = null;
+    try {
+      userId = getUserIdFromToken(req);
+    } catch {
+      userId = null;
+    }
+
     const pipeline: any[] = [
       { $match: {} },
 
@@ -150,7 +157,13 @@ export const getEvents = async (req: Request, res: Response) => {
 export const getEventById = async (req: Request, res: Response) => {
   try {
     const rcResponse = new ApiResponse();
-    const userId = getUserIdFromToken(req);
+    // Safe token extraction
+    let userId: string | null = null;
+    try {
+      userId = getUserIdFromToken(req);
+    } catch {
+      userId = null;
+    }
     const eventId = req.params.id;
 
     const pipeline: any[] = [

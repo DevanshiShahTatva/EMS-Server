@@ -122,7 +122,6 @@ export const getFeedbackByUserId = async (req: Request, res: Response) => {
 export const getFeedbackByEventId = async (req: Request, res: Response) => {
     try {
         const rcResponse = new ApiResponse();
-        const userId = getUserIdFromToken(req);
         const eventId = req.params.id;
         const event = await Event.findById(eventId)
         if (!event) {
