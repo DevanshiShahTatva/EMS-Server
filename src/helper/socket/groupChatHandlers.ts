@@ -46,8 +46,7 @@ export default function groupChatHandlers(io: Server, socket: AuthenticatedSocke
         { _id: groupId, 'members.user': socket.userId },
         {
           $set: {
-            'members.$.unreadCount': 0,
-            'members.$.timestamp': new Date()
+            'members.$.unreadCount': 0
           }
         }
       );
@@ -75,7 +74,7 @@ export default function groupChatHandlers(io: Server, socket: AuthenticatedSocke
         throw new Error('Invalid user or group ID');
       }
 
-      const systemMessage = new GroupMessage({
+      const systemMessage: any = new GroupMessage({
         group: groupId,
         isSystemMessage: true,
         systemMessageType: 'user_left',
@@ -137,8 +136,9 @@ export default function groupChatHandlers(io: Server, socket: AuthenticatedSocke
       const savedMessage = await message.save({ session });
       await savedMessage.populate('sender', 'name profileimage');
 
-      const sockets = await io.in(groupId).fetchSockets();
-      const connectedUserIds = sockets
+      const socketsInRoom = await io.in(groupId).fetchSockets();
+      const connectedUserIds = socketsInRoom
+        .filter(s => (s as any).activeGroupId === groupId)
         .map(s => (s as any).userId)
         .filter(Boolean);
 
@@ -147,7 +147,6 @@ export default function groupChatHandlers(io: Server, socket: AuthenticatedSocke
           filter: { _id: groupId, 'members.user': member.user },
           update: {
             $set: {
-              'members.$.timestamp': new Date(),
               ...(member.user.toString() === socket.userId ? {
                 'members.$.unreadCount': 0
               } : {})

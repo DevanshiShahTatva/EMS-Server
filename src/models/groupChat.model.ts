@@ -3,7 +3,6 @@ import mongoose from 'mongoose';
 const groupSchema = new mongoose.Schema({
   members: [{
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
-    timestamp: { type: Date, default: Date.now },
     unreadCount: { type: Number, default: 0, index: true }
   }],
   admin: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },

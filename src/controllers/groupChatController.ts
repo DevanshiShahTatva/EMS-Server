@@ -36,7 +36,7 @@ export const groupChatList = async (req: Request, res: Response) => {
                 localField: 'sender',
                 foreignField: '_id',
                 as: 'sender',
-                pipeline: [{ $project: { name: 1, profileimage: 1 } }]
+                pipeline: [{ $project: { name: 1 } }]
               }
             },
             { $unwind: '$sender' }
@@ -50,15 +50,12 @@ export const groupChatList = async (req: Request, res: Response) => {
       {
         $lookup: {
           from: 'users',
-          localField: 'members.user',
-          foreignField: '_id',
-          as: 'memberDetails',
-          pipeline: [{
-            $project: {
-              name: 1,
-              profileimage: 1
-            }
-          }]
+          let: { userIds: '$originalMembers.user' },
+          pipeline: [
+            { $match: { $expr: { $in: ['$_id', '$$userIds'] } } },
+            { $project: { name: 1, 'profileimage.url': 1 } }
+          ],
+          as: 'userInfos'
         }
       },
       {
@@ -74,9 +71,9 @@ export const groupChatList = async (req: Request, res: Response) => {
                     $arrayElemAt: [
                       {
                         $filter: {
-                          input: '$memberDetails',
-                          as: 'detail',
-                          cond: { $eq: ['$$detail._id', '$$member.user'] }
+                          input: '$userInfos',
+                          as: 'u',
+                          cond: { $eq: ['$$u._id', '$$member.user'] }
                         }
                       },
                       0
@@ -115,17 +112,10 @@ export const groupChatList = async (req: Request, res: Response) => {
       {
         $project: {
           _id: 1,
-          unreadCount: 1,
-          'event.title': 1,
-          'event.images.url': 1,
-          'members.user': 1,
-          'members.name': 1,
-          'members.unreadCount': 1,
-          'members.profileimage': 1,
-          'lastMessage.content': 1,
-          'lastMessage.createdAt': 1,
-          'lastMessage.sender.name': 1,
-          'lastMessage.status': 1
+          event: 1,
+          members: 1,
+          lastMessage: 1,
+          unreadCount: 1
         }
       }
     ]);
