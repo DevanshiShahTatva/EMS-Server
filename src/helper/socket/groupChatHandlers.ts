@@ -133,7 +133,7 @@ export default function groupChatHandlers(io: Server, socket: AuthenticatedSocke
         readBy: [socket.userId]
       });
 
-      const savedMessage = await message.save({ session });
+      let savedMessage = await message.save({ session });
       await savedMessage.populate('sender', 'name profileimage');
 
       const socketsInRoom = await io.in(groupId).fetchSockets();
@@ -182,6 +182,9 @@ export default function groupChatHandlers(io: Server, socket: AuthenticatedSocke
           }
         })
         .lean();
+        
+        savedMessage = await savedMessage.populate('group');
+        savedMessage = await savedMessage.populate('group.event');
 
       updatedGroup?.members.forEach((member: any) => {
         if (member.user.toString() !== socket.userId) {
@@ -195,6 +198,8 @@ export default function groupChatHandlers(io: Server, socket: AuthenticatedSocke
             lastMessage: updatedGroup.lastMessage?.content ?? null,
             lastMessageTime: updatedGroup.lastMessage?.createdAt ?? null,
           });
+
+          io.to(member.user.toString()).emit('chat_notification', savedMessage);
         }
       });
 

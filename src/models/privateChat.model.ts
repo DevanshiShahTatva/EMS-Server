@@ -6,6 +6,8 @@ const privateChatSchema = new mongoose.Schema({
   lastMessage: { type: mongoose.Schema.Types.ObjectId, ref: 'PrivateMessage' },
   senderVisible: { type: Boolean, default: false },
   receiverVisible: { type: Boolean, default: false },
+  senderUnreadCount: { type: Number, default: 0, index: true },
+  receiverUnreadCount: { type: Number, default: 0, index: true },
   hasMessages: { type: Boolean, default: false },
 }, {
   timestamps: true,
