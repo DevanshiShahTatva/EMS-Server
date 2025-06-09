@@ -17,7 +17,7 @@ import Voucher from "../models/voucher.model";
 import { generateUniquePromoCode } from "../helper/generatePromoCode";
 import GroupChat from "../models/groupChat.model";
 import { io } from "../server";
-import Message from "../models/groupMessage.model";
+import GroupMessage from "../models/groupMessage.model";
 import { sendNotification } from "../services/notificationService";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -172,19 +172,28 @@ export const postTicketBook = async (req: Request, res: any) => {
     if (!group) {
       group = new GroupChat({
         event: eventId,
-        members: [userId],
+        members: [{
+          user: userId,
+          timestamp: new Date(),
+          unreadCount: 0
+        }],
         admin: userId
       });
       await group.save({ session });
-    } else if (!group.members.some((id: any) => id.equals(userId))) {
-      group.members.push(userId);
+    } else if (!group.members.some((member: any) => member.user.equals(userId))) {
+      group.members.push({
+        user: userId,
+        timestamp: new Date(),
+        unreadCount: 0
+      });
+   
       await group.save({ session });
 
       const newMember = await User.findById(userId)
         .select('name profileimage')
         .lean() as any;
 
-      const systemMessage = new Message({
+      const systemMessage = new GroupMessage({
         group: group._id,
         isSystemMessage: true,
         systemMessageData: { userId },
