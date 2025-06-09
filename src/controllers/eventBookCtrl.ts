@@ -114,6 +114,8 @@ export const postTicketBook = async (req: Request, res: any) => {
       );
     }
 
+    const getCharges = await CancelCharge.findOne();
+
     // Store the created booking in a variable
     const [booking] = await TicketBook.create(
       [
@@ -125,6 +127,7 @@ export const postTicketBook = async (req: Request, res: any) => {
           totalAmount,
           paymentId,
           discount: discount || 0,
+          cancellationCharge: getCharges.charge
         },
       ],
       { session }
@@ -381,9 +384,9 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
       { bookingStatus: "cancelled", cancelledAt: new Date() }
     ).session(session);
 
-    const getCharges = await CancelCharge.findOne();
+    const getCharges = booking.cancellationCharge || 0;
 
-    const charge = (getCharges.charge / 100) * booking.totalAmount;
+    const charge = (getCharges / 100) * booking.totalAmount;
     const refundAmount = Math.trunc(booking.totalAmount - charge);
 
     // 7. No refund if pay amount is 0
