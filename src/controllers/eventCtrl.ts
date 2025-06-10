@@ -16,6 +16,7 @@ import TicketBook from "../models/eventBooking.model";
 import PointSetting from "../models/pointSetting.model";
 import { appLogger } from "../helper/logger";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { populateSeatLayoutStages } from "../helper/populates/populateSeatLayoutStages";
 
 export const postEvent = async (req: Request, res: Response) => {
   const log = appLogger.child({ method: "postEvent" });
@@ -68,6 +69,8 @@ export const getEvents = async (req: Request, res: Response) => {
 
     const pipeline: any[] = [
       { $match: {} },
+
+      ...populateSeatLayoutStages(),
 
       // Populate category
       {
