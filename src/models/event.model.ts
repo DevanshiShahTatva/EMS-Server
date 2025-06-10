@@ -30,6 +30,12 @@ interface IEvent extends Document {
   likesCount: Number;
   isLiked: Boolean;
   numberOfPoint: number;
+  sponsors: ISponsor[];
+}
+
+interface ISponsor {
+  orgId: string;
+  status: "pending" | "approved" | "rejected";
 }
 
 const TicketSchema = new Schema<ITicket>({
@@ -152,6 +158,22 @@ const EventSchema = new Schema<IEvent>(
     isLiked: { type: Boolean, default: false },
     likesCount: { type: Number, default: 0 },
     numberOfPoint: { type: Number, default: 0 },
+   sponsors: [{
+    orgId: {
+      type: String,
+      ref: "User", // or "Organizer"
+      required: true
+    },
+    status: {
+      type: String,
+      enum: ["pending", "approved", "rejected"], 
+      default: "pending"
+    }, 
+    image: {
+      type: String,
+    }
+  }]
+
   },
   {
     timestamps: true,
