@@ -17,6 +17,7 @@ import PointSetting from "../models/pointSetting.model";
 import { appLogger } from "../helper/logger";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { populateSeatLayoutStages } from "../helper/populates/populateSeatLayoutStages";
+import { addKeywordsInEntity, deleteKeywordsInEntity } from "../helper/chatbotTrainer";
 
 export const postEvent = async (req: Request, res: Response) => {
   const log = appLogger.child({ method: "postEvent" });
@@ -43,6 +44,8 @@ export const postEvent = async (req: Request, res: Response) => {
 
     // log.info("Creating event with data", { eventData });
     rcResponse.data = await create("Event", eventData);
+
+    addKeywordsInEntity("event_name", rcResponse.data.title);
 
     // log.info("Event created successfully", { eventId: rcResponse.data._id });
     return res.status(rcResponse.status).send(rcResponse);
@@ -312,6 +315,10 @@ export const putEvent = async (req: Request, res: Response) => {
     // 7. Update database first
     const result = await updateOne("Event", { _id: eventId }, updatedEventData);
 
+    deleteKeywordsInEntity("event_name", findEvent.title);
+
+    addKeywordsInEntity("event_name", updatedEventData.title);
+
     // 8. Delete old images after successful update
     await Promise.all(
       imagesToDelete.map((img: any) => deleteFromCloudinary(img.imageId))
@@ -379,6 +386,8 @@ export const deleteEvent = async (req: Request, res: Response) => {
         );
       }
     }
+
+    deleteKeywordsInEntity("event_name", event.title);
 
     // log.info({ eventId }, "Deleting event from database");
     rcResponse.data = await deleteOne("Event", { _id: eventId });
