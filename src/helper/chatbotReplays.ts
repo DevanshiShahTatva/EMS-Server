@@ -63,8 +63,9 @@ export const getEventCardList = (
         <h2 class="text-md font-semibold mb-2">Here are the details of the event(s)</h2>
         <div class="overflow-x-auto w-full">
           <div class="flex gap-2 w-max">
-            ${dbEvent.map(
-              (event) => `<a
+            ${dbEvent
+              .map(
+                (event) => `<a
                   href="/events/${event._id}" 
                   key=${event._id}
                   class="w-full max-w-60 bg-white border border-gray-300 rounded-xl shadow-sm p-2 flex-shrink-0 flex flex-col gap-2"
@@ -75,10 +76,6 @@ export const getEventCardList = (
                     class="w-full h-24 object-cover rounded-md"
                   />
                   <p class="font-semibold text-sm">${event.title}</p>
-                  <p class="text-xs text-gray-500"> <b>Location:</b> </br> ${event.location.address}</p>
-                  <p class="text-xs text-gray-500"> <b>Start Date:</b> </br> ${new Date(
-                    event.startDateTime
-                  ).toLocaleString()}</p>
                   ${
                     isOnlyReview
                       ? `
@@ -97,8 +94,19 @@ export const getEventCardList = (
                       ? `<p class="text-xs text-gray-500"> <b>Distance:</b> </br> ${(event.distance / 1000).toFixed(2)}</p>`
                       : ""
                   }
+                  ${
+                    !isOnlyReview && !event.distance && !event.likesCount
+                      ? `<p class="text-xs text-gray-500"> <b>Location:</b> </br> ${event.location.address}</p>
+                          <p class="text-xs text-gray-500"> <b>Start Date:</b> </br> ${new Date(
+                            event.startDateTime
+                          ).toLocaleString("en-IN", {
+                            timeZone: "Asia/Kolkata",
+                          })}</p>`
+                      : ""
+                  }
                 </a>`
-            )}
+              )
+              .join("")}
           </div>
         </div>
       `;
