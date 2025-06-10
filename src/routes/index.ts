@@ -15,6 +15,8 @@ import voucherRoutes from "./voucherRoutes";
 import chatRoutes from "./chatRoutes";
 import notificationRoutes from './notificationRoutes';
 import chatbotRoutes from "./chatbotRoutes";
+import sponsorshipRoutes from "./sponsorshipRoutes";
+
 
 const router = Router();
 router.use(authRoutes);
@@ -33,5 +35,7 @@ router.use('/voucher', voucherRoutes);
 router.use("/chat", chatRoutes);
 router.use('/notification', notificationRoutes);
 router.use('/chatbot', chatbotRoutes);
+router.use('/organizer', sponsorshipRoutes)
+
 
 export default router;

@@ -43,6 +43,12 @@ interface IEvent extends Document {
   numberOfPoint: number;
   seatLayout: ISeatLayout[],
   eventMode: string;
+  sponsors: ISponsor[];
+}
+
+interface ISponsor {
+  orgId: string;
+  status: "pending" | "approved" | "rejected";
 }
 
 const TicketSchema = new Schema<ITicket>({
@@ -194,7 +200,23 @@ const EventSchema = new Schema<IEvent>(
       type: String,
       enum: ["ONLINE", "OFFLINE"],
       defalut: "OFFLINE"
+    },
+   sponsors: [{
+    orgId: {
+      type: String,
+      ref: "User", // or "Organizer"
+      required: true
+    },
+    status: {
+      type: String,
+      enum: ["pending", "approved", "rejected"], 
+      default: "pending"
+    }, 
+    image: {
+      type: String,
     }
+  }]
+
   },
   {
     timestamps: true,
