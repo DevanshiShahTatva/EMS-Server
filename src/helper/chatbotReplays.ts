@@ -220,7 +220,16 @@ export const getDBEventDetailAnswer = async (
 ): Promise<string> => {
   switch (detailType) {
     case "date":
-      return `The event starts on <b>${new Date(event.startDateTime).toLocaleString()}</b> and ends on <b>${new Date(event.endDateTime).toLocaleString()}</b>.`;
+      return `The event starts on <b>${new Date(
+        event.startDateTime
+      ).toLocaleString("en-IN", {
+        timeZone: "Asia/Kolkata",
+      })}</b> and ends on <b>${new Date(event.endDateTime).toLocaleString(
+        "en-IN",
+        {
+          timeZone: "Asia/Kolkata",
+        }
+      )}</b>.`;
 
     case "duration":
       return `The event lasts for <b>${event.duration}</b>.`;
