@@ -6,6 +6,7 @@ import mongoose from 'mongoose';
 import TicketCategory from '../models/ticketCategory.model';
 import { deleteFromCloudinary, saveFileToCloud } from '../helper/cloudniry';
 import Event from '../models/event.model';
+import { addKeywordsInEntity, deleteKeywordsInEntity } from '../helper/chatbotTrainer';
 
 export const getAllTicketCategories = async (_req: Request, res: Response) => {
     const log = appLogger.child({ method: 'getAllTicketCategories' });
@@ -76,6 +77,8 @@ export const createTicketCategory = async (req: Request, res: Response) => {
             ...req.body,
             icon: iconData
         });
+        
+        addKeywordsInEntity('event_category', ticketCategory.name);
 
         res.status(HTTP_STATUS_CODE.CREATED).json({
             success: true,
@@ -172,6 +175,10 @@ export const updateTicketCategory = async (req: Request, res: Response) => {
             return throwError(res, 'Ticket category not found', HTTP_STATUS_CODE.NOT_FOUND);
         }
 
+        deleteKeywordsInEntity('event_category', existingCategory.name);
+
+        addKeywordsInEntity('event_category', updateData.name);
+
         res.status(HTTP_STATUS_CODE.OK).json({
             success: true,
             data: updatedTicketCategory,
@@ -227,6 +234,8 @@ export const deleteTicketCategory = async (req: Request, res: Response) => {
 
         // Proceed to delete from DB
         await TicketCategory.findByIdAndDelete(req.params.id);
+
+        deleteKeywordsInEntity('event_category', category.name);
 
         res.status(HTTP_STATUS_CODE.OK).json({
             success: true,
