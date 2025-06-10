@@ -67,6 +67,7 @@ export const getEventCardList = (
               .map(
                 (event) => `<a
                   href="/events/${event._id}" 
+                  target="_blank"
                   key=${event._id}
                   class="w-full max-w-60 bg-white border border-gray-300 rounded-xl shadow-sm p-2 flex-shrink-0 flex flex-col gap-2"
                 >
