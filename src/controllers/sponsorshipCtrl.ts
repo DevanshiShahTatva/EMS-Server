@@ -3,6 +3,8 @@ import Event from "../models/event.model";
 import Sponsorship from "../models/sponsorship.model";
 import { throwError, getUserIdFromToken } from "../helper/common";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { saveFileToCloud } from "../helper/cloudniry";
+import { appLogger } from "../helper/logger";
 
 export const getUpcomingEvents = async (req: Request, res: Response) => {
   try {
@@ -22,8 +24,9 @@ export const getUpcomingEvents = async (req: Request, res: Response) => {
 };
 
 export const requestSponsorship = async (req: Request, res: Response) => {
+  const log = appLogger.child({ method: "requestSponsorship" });
   try {
-    const { eventId, image } = req.body;
+    const { eventId } = req.body;
     const organizerId = getUserIdFromToken(req);
 
     if (!eventId || !organizerId) {
@@ -45,22 +48,37 @@ export const requestSponsorship = async (req: Request, res: Response) => {
       });
     }
 
+    // Decide imageUrl
+    let imageUrl = "";
+
+    // Case 1 - file upload
+    const file = req.file as Express.Multer.File;
+    if (file) {
+      const result = await saveFileToCloud(file); // result is { url, imageId }
+      imageUrl = result.url;
+      log.info({ imageUrl }, "Uploaded image to cloud");
+    }
+    // Case 2 - image url from body
+    else if (req.body.image) {
+      imageUrl = req.body.image;
+      log.info({ imageUrl }, "Using image URL from request body");
+    }
+
     const request = new Sponsorship({
       eventId,
       organizerId,
       status: "pending",
-      image,
+      image: imageUrl,
     });
 
     await request.save();
 
-    // Add to event's sponsors array with pending status
     await Event.findByIdAndUpdate(eventId, {
       $addToSet: {
         sponsors: {
           orgId: organizerId,
           status: "pending",
-          image,
+          image: imageUrl,
         },
       },
     });
@@ -71,6 +89,7 @@ export const requestSponsorship = async (req: Request, res: Response) => {
       data: request,
     });
   } catch (error) {
+    log.error({ err: error }, "Failed to create sponsorship request");
     return throwError(res, "Failed to create sponsorship request", 400);
   }
 };
