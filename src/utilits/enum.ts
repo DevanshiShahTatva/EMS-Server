@@ -37,7 +37,6 @@ export const allowedOrigins = [
   process.env.CLIENT_URL1,
   "https://a695-152-59-36-197.ngrok-free.app",
   "https://devanshi-9417788.postman.co",
-  "https://eventlyclient.netlify.app"
 ];
 
 export const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

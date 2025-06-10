@@ -161,12 +161,12 @@ const EventSchema = new Schema<IEvent>(
    sponsors: [{
     orgId: {
       type: String,
-      ref: "User", // or "User" depending on your setup
+      ref: "User", // or "Organizer"
       required: true
     },
     status: {
       type: String,
-      enum: ["pending", "approved", "rejected"], // customize as needed
+      enum: ["pending", "approved", "rejected"], 
       default: "pending"
     }, 
     image: {
