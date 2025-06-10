@@ -23,6 +23,24 @@ export const createSeatLayout = async (req: Request, res: Response) => {
   }
 };
 
+export const updateSeatLayout = async (req: Request, res: Response) => {
+  try {
+    const rcResponse = new ApiResponse();
+    const { seatLayout, eventId } = req.body;
+
+    const findEvent = await Event.findOne({ _id: eventId });
+    if (!findEvent) {
+      return throwError(res, "Event not found", HTTP_STATUS_CODE.BAD_REQUEST);
+    }
+
+    rcResponse.data = await SeatLayout.findOneAndUpdate({ event: eventId }, { seatLayout });
+    res.status(rcResponse.status).send(rcResponse);
+  } catch (error) {
+    console.log("Error::", error)
+    return throwError(res);
+  }
+};
+
 export const getSeatLayout = async (req: Request, res: Response) => {
   try {
     const rcResponse = new ApiResponse();
