@@ -2,7 +2,6 @@ import { Request, Response } from "express";
 import Event from "../models/event.model";
 import Sponsorship from "../models/sponsorship.model";
 import { throwError, getUserIdFromToken } from "../helper/common";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { saveFileToCloud } from "../helper/cloudniry";
 import { appLogger } from "../helper/logger";
 
@@ -25,6 +24,7 @@ export const getUpcomingEvents = async (req: Request, res: Response) => {
 
 export const requestSponsorship = async (req: Request, res: Response) => {
   const log = appLogger.child({ method: "requestSponsorship" });
+
   try {
     const { eventId } = req.body;
     const organizerId = getUserIdFromToken(req);
@@ -36,42 +36,31 @@ export const requestSponsorship = async (req: Request, res: Response) => {
       });
     }
 
-    const existingRequest = await Sponsorship.findOne({
-      eventId,
-      organizerId,
-    });
-
-    if (existingRequest) {
+    if (await Sponsorship.exists({ eventId, organizerId })) {
       return res.status(400).json({
         success: false,
         message: "Sponsorship request already exists",
       });
     }
 
-    // Decide imageUrl
     let imageUrl = "";
 
     // Case 1 - file upload
     const file = req.file as Express.Multer.File;
+
     if (file) {
-      const result = await saveFileToCloud(file); // result is { url, imageId }
-      imageUrl = result.url;
+      imageUrl = (await saveFileToCloud(file)).url; // result is { url, imageId }
       log.info({ imageUrl }, "Uploaded image to cloud");
-    }
-    // Case 2 - image url from body
-    else if (req.body.image) {
+    } else if (req.body.image) {
       imageUrl = req.body.image;
-      log.info({ imageUrl }, "Using image URL from request body");
     }
 
-    const request = new Sponsorship({
+    const request = await Sponsorship.create({
       eventId,
       organizerId,
       status: "pending",
       image: imageUrl,
     });
-
-    await request.save();
 
     await Event.findByIdAndUpdate(eventId, {
       $addToSet: {
@@ -104,7 +93,7 @@ export const getAllSponsorshipRequests = async (req: Request, res: Response) => 
   }
 };
 
-export const updateSponsorshipStatus = async (req: Request, res: Response): Promise<void> => {
+export const updateSponsorshipStatus = async (req: Request, res: Response) => {
   try {
     const { requestId, status } = req.body;
 
@@ -128,44 +117,28 @@ export const updateSponsorshipStatus = async (req: Request, res: Response): Prom
     sponsorshipRequest.status = status;
     await sponsorshipRequest.save();
 
-    if (status === "approved") {
-      // Update existing sponsor or add if not exists
-      await Event.findByIdAndUpdate(
-        sponsorshipRequest.eventId,
-        {
-          $set: {
-            "sponsors.$[elem].status": "approved",
-          },
-        },
-        {
-          arrayFilters: [{ "elem.orgId": sponsorshipRequest.organizerId.toString() }],
-          new: true,
-        }
-      ).then(async (result) => {
-        // If no matching sponsor was found, add a new one
-        if (
-          !result ||
-          result.sponsors.find((s: any) => s.orgId === sponsorshipRequest.organizerId.toString()) === undefined
-        ) {
-          await Event.findByIdAndUpdate(sponsorshipRequest.eventId, {
-            $addToSet: {
-              sponsors: {
-                orgId: sponsorshipRequest.organizerId.toString(),
-                status: "approved",
-                image: sponsorshipRequest.image,
-              },
+    const updateOperation =
+      status === "approved"
+        ? {
+            $set: {
+              "sponsors.$[elem].status": "approved",
             },
-          });
-        }
-      });
-    } else {
-      // For rejected status, remove the sponsor
-      await Event.findByIdAndUpdate(sponsorshipRequest.eventId, {
-        $pull: {
-          sponsors: { orgId: sponsorshipRequest.organizerId.toString() },
-        },
-      });
-    }
+          }
+        : {
+            $pull: {
+              sponsors: { orgId: sponsorshipRequest.organizerId.toString() },
+            },
+          };
+
+    await Event.findByIdAndUpdate(
+      sponsorshipRequest.eventId,
+      updateOperation,
+      status === "approved"
+        ? {
+            arrayFilters: [{ "elem.orgId": sponsorshipRequest.organizerId.toString() }],
+          }
+        : {}
+    );
 
     res.status(200).json({
       success: true,
@@ -178,36 +151,5 @@ export const updateSponsorshipStatus = async (req: Request, res: Response): Prom
       success: false,
       message: "Internal server error",
     });
-  }
-};
-
-export const generateSponsorBanner = async (req: Request, res: Response) => {
-  console.log("Request body:", req.body);
-
-  try {
-    const { bgUrl, centerText } = req.body;
-
-    const prompt = `
-      Create a high-quality banner image.
-      - Background: ${bgUrl}
-      - Center Text: "${centerText}"
-      
-      Overlay the text in a visually appealing way, center-aligned. Return only the image.
-    `;
-
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro-vision" });
-
-    const result = await model.generateContent([prompt]);
-    const response = await result.response;
-    const imageBase64 = await response.text(); // or other format Gemini returns
-
-    res.send({
-      success: true,
-      image: imageBase64,
-    });
-  } catch (err) {
-    console.error("Image generation failed:", err);
-    res.status(500).send({ success: false, message: "Image generation failed." });
   }
 };
