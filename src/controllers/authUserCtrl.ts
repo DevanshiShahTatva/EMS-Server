@@ -191,7 +191,7 @@ export const loginUser = async (req: Request, res: Response) => {
       if (!isValidPassword) {
         return throwError(
           res,
-          "Invalid Password",
+          "Invalid Credentials",
           HTTP_STATUS_CODE.BAD_REQUEST
         );
       }

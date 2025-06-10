@@ -10,6 +10,17 @@ interface ITicket {
   description?: string;
 }
 
+interface ISeatRows {
+  row: string;
+  seats: [{ seatNumber: string, isUsed: boolean }]
+}
+
+interface ISeatLayout {
+  ticketType: ITicketType,
+  price: number,
+  rows: ISeatRows[]
+}
+
 interface IEvent extends Document {
   title: string;
   description: string;
@@ -30,6 +41,14 @@ interface IEvent extends Document {
   likesCount: Number;
   isLiked: Boolean;
   numberOfPoint: number;
+  seatLayout: ISeatLayout[],
+  eventMode: string;
+  sponsors: ISponsor[];
+}
+
+interface ISponsor {
+  orgId: string;
+  status: "pending" | "approved" | "rejected";
 }
 
 const TicketSchema = new Schema<ITicket>({
@@ -51,6 +70,27 @@ const TicketSchema = new Schema<ITicket>({
   description: {
     type: String,
   },
+});
+
+const SeatLayoutSchema = new Schema<ISeatLayout>({
+  ticketType: {
+    required: true,
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "TicketType",
+  },
+  price: {
+    type: Number,
+    min: 0,
+  },
+  rows: {
+    type : [
+      { 
+        row: String,
+        seats: [{ seatNumber: String, isUsed: Boolean }]
+      }
+    ],
+    default: []
+  }
 });
 
 const LocationSchema = new mongoose.Schema(
@@ -152,6 +192,31 @@ const EventSchema = new Schema<IEvent>(
     isLiked: { type: Boolean, default: false },
     likesCount: { type: Number, default: 0 },
     numberOfPoint: { type: Number, default: 0 },
+    seatLayout: {
+      type: [SeatLayoutSchema],
+      default: []
+    },
+    eventMode: {
+      type: String,
+      enum: ["ONLINE", "OFFLINE"],
+      defalut: "OFFLINE"
+    },
+   sponsors: [{
+    orgId: {
+      type: String,
+      ref: "User", // or "Organizer"
+      required: true
+    },
+    status: {
+      type: String,
+      enum: ["pending", "approved", "rejected"], 
+      default: "pending"
+    }, 
+    image: {
+      type: String,
+    }
+  }]
+
   },
   {
     timestamps: true,

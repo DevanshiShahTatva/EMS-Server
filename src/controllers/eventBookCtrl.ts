@@ -172,15 +172,15 @@ export const postTicketBook = async (req: Request, res: any) => {
     }
 
     let group = await GroupChat.findOne({ event: eventId }).session(session);
-    if (!group) {
+    const adminUser = await User.findOne({ role: "admin" }).session(session);
+    if (!group && adminUser) {
       group = new GroupChat({
         event: eventId,
-        members: [{
-          user: userId,
-          timestamp: new Date(),
-          unreadCount: 0
-        }],
-        admin: userId
+        members: [
+          { user: adminUser._id, unreadCount: 0 },
+          { user: userId, unreadCount: 0 }
+        ],
+        admin: adminUser._id,
       });
       await group.save({ session });
     } else if (!group.members.some((member: any) => member.user.equals(userId))) {
