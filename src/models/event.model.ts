@@ -59,6 +59,33 @@ const TicketSchema = new Schema<ITicket>({
   },
 });
 
+const LocationSchema = new mongoose.Schema(
+  {
+    type: {
+      type: String,
+      enum: ["Point"],
+      required: true,
+    },
+    coordinates: {
+      type: [Number],
+      required: true,
+    },
+    address: {
+      type: String,
+      required: true,
+    },
+    lat: {
+      type: Number,
+      required: true,
+    },
+    lng: {
+      type: Number,
+      required: true,
+    },
+  },
+  { _id: false }
+);
+
 const EventSchema = new Schema<IEvent>(
   {
     title: {
@@ -74,18 +101,8 @@ const EventSchema = new Schema<IEvent>(
       minlength: 20,
     },
     location: {
-      address: {
-        type: String,
-        required: true,
-      },
-      lat: {
-        type: Number,
-        required: true,
-      },
-      lng: {
-        type: Number,
-        required: true,
-      },
+      type: LocationSchema,
+      required: true,
     },
     startDateTime: {
       type: Date,
@@ -135,10 +152,8 @@ const EventSchema = new Schema<IEvent>(
       required: true,
     },
     likes: {
-      type: [
-        { type: mongoose.Schema.Types.ObjectId, ref: "User" }
-      ],
-      default: []
+      type: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+      default: [],
     },
     isLiked: { type: Boolean, default: false },
     likesCount: { type: Number, default: 0 },
@@ -165,6 +180,9 @@ const EventSchema = new Schema<IEvent>(
   }
 );
 
-const Event = mongoose.models.Event || mongoose.model<IEvent>("Event", EventSchema);
+EventSchema.index({ location: "2dsphere" });
+
+const Event =
+  mongoose.models.Event || mongoose.model<IEvent>("Event", EventSchema);
 
 export default Event;

@@ -20,11 +20,11 @@ const upload = multer();
 const eventsRoutes = Router();
 
 // PUBLIC
-eventsRoutes.get("/", validateToken, getEvents);
-eventsRoutes.get("/:id", validateToken, getEventById);
+eventsRoutes.get("/", getEvents);
+eventsRoutes.get("/:id", getEventById);
 eventsRoutes.post("/:id/like", validateToken, likeEvent);
 eventsRoutes.post("/:id/feedback", validateToken, feedbackEvent);
-eventsRoutes.get("/:id/feedbacks", validateToken, getFeedbackByEventId);
+eventsRoutes.get("/:id/feedbacks", getFeedbackByEventId);
 
 // ADMIN ONLY
 eventsRoutes.post(

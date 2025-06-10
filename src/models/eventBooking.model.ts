@@ -11,7 +11,8 @@ const ticketBookingSchema = new mongoose.Schema({
   isAttended: { type: Boolean, default: false },
   bookingDate: { type: Date, default: Date.now },
   bookingStatus: { type: String, default: "booked" },
-  cancelledAt: { type: Date, default: null }
+  cancelledAt: { type: Date, default: null },
+  cancellationCharge: { type: Number, default: 0 }
 });
 
 const TicketBook =
