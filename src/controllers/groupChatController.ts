@@ -242,9 +242,12 @@ export const addMembersInGroup = async (req: Request, res: Response) => {
     const systemMessages = newMembersData.map(user => ({
       group: groupId,
       isSystemMessage: true,
-      systemMessageData: { userId: adminId },
       systemMessageType: 'user_added',
       content: `Admin added ${user.name}`,
+      systemMessageData: {
+        adminId,
+        userId: user._id
+      },
       readBy: [adminId]
     }));
 
@@ -267,5 +270,77 @@ export const addMembersInGroup = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Err:', error);
     return throwError(res, "Failed to add members", HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR);
+  }
+};
+
+export const removeMemberFromGroup = async (req: Request, res: Response) => {
+  try {
+    const adminId = getUserIdFromToken(req);
+    const { groupId } = req.params;
+    const { memberId } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(groupId) || !mongoose.Types.ObjectId.isValid(memberId)) {
+      return throwError(res, "Invalid ID provided", HTTP_STATUS_CODE.BAD_REQUEST);
+    }
+
+    const group = await GroupChat.findOne({
+      _id: groupId,
+      'members.user': adminId
+    }).populate("event", "title");
+
+    if (!group) {
+      return throwError(res, "You are not authorized to remove members", HTTP_STATUS_CODE.FORBIDDEN);
+    }
+
+    const memberExists = group.members.some((m: { user: string }) => m.user.toString() === memberId);
+    if (!memberExists) {
+      return throwError(res, "Member not found in group", HTTP_STATUS_CODE.NOT_FOUND);
+    }
+
+    const memberToRemove = await User.findById(memberId, 'name');
+    if (!memberToRemove) {
+      return throwError(res, "User not found", HTTP_STATUS_CODE.NOT_FOUND);
+    }
+
+    await GroupChat.findByIdAndUpdate(
+      groupId,
+      { $pull: { members: { user: memberId } } },
+      { new: true }
+    );
+
+    const systemMessage = new GroupMessage({
+      group: groupId,
+      isSystemMessage: true,
+      systemMessageType: 'user_removed',
+      content: `Admin removed ${memberToRemove.name}`,
+      systemMessageData: {
+        adminId,
+        userId: memberToRemove._id
+      },
+      readBy: [adminId],
+    });
+
+    await systemMessage.save();
+
+    if (io) {
+      io.to(groupId).emit('group_member_removed', {
+        groupId,
+        removedMemberId: memberId,
+        groupName: group.event?.title ?? "",
+      });
+
+      io.to(groupId).emit('receive_group_message', { message: [systemMessage], isSystemMsg: true });
+
+      const memberSockets = await io.in(memberId).fetchSockets();
+      memberSockets.forEach(socket => {
+        socket.leave(groupId);
+      });
+    }
+
+    res.status(200).json({ success: true });
+
+  } catch (err) {
+    console.error("Err:", err);
+    return throwError(res, "Failed to remove member from group", HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR);
   }
 };
