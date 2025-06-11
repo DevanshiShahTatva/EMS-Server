@@ -94,7 +94,7 @@ export default function groupChatHandlers(io: Server, socket: AuthenticatedSocke
         removedMemberId: socket.userId,
       });
 
-      io.to(groupId).emit('receive_group_message', systemMessage);
+      io.to(groupId).emit('receive_group_message', { message: [systemMessage], isSystemMsg: true });
 
       socket.leave(groupId);
 
@@ -169,7 +169,7 @@ export default function groupChatHandlers(io: Server, socket: AuthenticatedSocke
       await GroupChat.bulkWrite(bulkOps, { session });
       await session.commitTransaction();
 
-      io.to(groupId).emit('receive_group_message', savedMessage.toObject());
+      io.to(groupId).emit('receive_group_message', { message: savedMessage.toObject(), isSystemMsg: false });
 
       const updatedGroup: any = await GroupChat.findById(groupId)
         .select('members lastMessage')
@@ -182,9 +182,9 @@ export default function groupChatHandlers(io: Server, socket: AuthenticatedSocke
           }
         })
         .lean();
-        
-        savedMessage = await savedMessage.populate('group');
-        savedMessage = await savedMessage.populate('group.event');
+
+      savedMessage = await savedMessage.populate('group');
+      savedMessage = await savedMessage.populate('group.event');
 
       updatedGroup?.members.forEach((member: any) => {
         if (member.user.toString() !== socket.userId) {

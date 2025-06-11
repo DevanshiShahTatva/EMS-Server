@@ -186,7 +186,6 @@ export const postTicketBook = async (req: Request, res: any) => {
     } else if (!group.members.some((member: any) => member.user.equals(userId))) {
       group.members.push({
         user: userId,
-        timestamp: new Date(),
         unreadCount: 0
       });
    
@@ -208,11 +207,11 @@ export const postTicketBook = async (req: Request, res: any) => {
 
       io.to(group._id.toString()).emit('group_member_added', {
         groupId: group._id.toString(),
-        newMember: {
+        members: [{
           id: userId,
           name: newMember?.name ?? "",
           avatar: newMember?.profileimage?.url ?? null
-        }
+        }]
       });
       io.to(group._id.toString()).emit('new_group_message', systemMessage);
     }
@@ -263,7 +262,7 @@ export const postTicketBook = async (req: Request, res: any) => {
                   type: "reward"
                 }
               });
-            } else if(voucherId) {
+            } else if (voucherId) {
               sendNotification(user, {
                 title: "Redeem Voucher",
                 body: `You have successfully redeem ${voucherId} voucher`,
