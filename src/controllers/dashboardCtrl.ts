@@ -21,7 +21,7 @@ export const dashboardOverview = async (req: Request, res: Response) => {
     const [totalUsers, totalRevenueResult, totalEvents, totalLocationsResult] =
       await Promise.all([
         // Total Users
-        User.countDocuments(),
+        User.countDocuments({ role: "user" }),
 
         // Total Revenue
         TicketBook.aggregate([

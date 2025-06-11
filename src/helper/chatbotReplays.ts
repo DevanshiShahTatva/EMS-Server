@@ -62,13 +62,14 @@ export const getEventCardList = (
   return `
         <h2 class="text-md font-semibold mb-2">Here are the details of the event(s)</h2>
         <div class="overflow-x-auto w-full">
-          <div class="flex gap-2 w-max">
+          <div class="flex gap-2 w-max my-2">
             ${dbEvent
               .map(
                 (event) => `<a
                   href="/events/${event._id}" 
+                  target="_blank"
                   key=${event._id}
-                  class="w-full max-w-60 bg-white border border-gray-300 rounded-xl shadow-sm p-2 flex-shrink-0 flex flex-col gap-2"
+                  class="w-full max-w-60 bg-white hover:bg-blue-100 border border-gray-300 rounded-xl shadow-md p-2 flex-shrink-0 flex flex-col gap-2"
                 >
                   <img
                     src=${event.images[0].url}
@@ -220,7 +221,16 @@ export const getDBEventDetailAnswer = async (
 ): Promise<string> => {
   switch (detailType) {
     case "date":
-      return `The event starts on <b>${new Date(event.startDateTime).toLocaleString()}</b> and ends on <b>${new Date(event.endDateTime).toLocaleString()}</b>.`;
+      return `The event starts on <b>${new Date(
+        event.startDateTime
+      ).toLocaleString("en-IN", {
+        timeZone: "Asia/Kolkata",
+      })}</b> and ends on <b>${new Date(event.endDateTime).toLocaleString(
+        "en-IN",
+        {
+          timeZone: "Asia/Kolkata",
+        }
+      )}</b>.`;
 
     case "duration":
       return `The event lasts for <b>${event.duration}</b>.`;

@@ -16,6 +16,7 @@ import chatRoutes from "./chatRoutes";
 import notificationRoutes from './notificationRoutes';
 import chatbotRoutes from "./chatbotRoutes";
 import sponsorshipRoutes from "./sponsorshipRoutes";
+import seatLayoutRoutes from "./seatLayoutRoutes";
 
 
 const router = Router();
@@ -35,7 +36,8 @@ router.use('/voucher', voucherRoutes);
 router.use("/chat", chatRoutes);
 router.use('/notification', notificationRoutes);
 router.use('/chatbot', chatbotRoutes);
-router.use('/organizer', sponsorshipRoutes)
+router.use('/organizer', sponsorshipRoutes);
+router.use("/events", seatLayoutRoutes);
 
 
 export default router;
