@@ -19,6 +19,7 @@ import GroupChat from "../models/groupChat.model";
 import { io } from "../server";
 import GroupMessage from "../models/groupMessage.model";
 import { sendNotification } from "../services/notificationService";
+import { SeatBookEmitter } from "../services/seatBookService";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-08-16" as any,
@@ -44,7 +45,7 @@ export const postTicketBook = async (req: Request, res: any) => {
     session.startTransaction();
 
     const rcResponse = new ApiResponse();
-    const { eventId, ticketId, seats, totalAmount, discount, paymentId, usedPoints, voucherId } =
+    const { eventId, ticketId, seats, totalAmount, discount, paymentId, usedPoints, voucherId, selectedSeats } =
       req.body;
 
     // find user from token
@@ -219,6 +220,15 @@ export const postTicketBook = async (req: Request, res: any) => {
 
     await session.commitTransaction();
     session.endSession();
+
+    // Reservce Seat
+    SeatBookEmitter.emit("reserve-seat", {
+      seats: JSON.parse(selectedSeats),
+      user: user,
+      event: eventId,
+      ticketId,
+      res: res
+    });
 
     // EMAIL SERVICE
     if (process.env.SEND_EMAILS === "true") {

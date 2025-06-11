@@ -1,0 +1,53 @@
+import { EventEmitter } from "events";
+import { SeatLayout } from "../models/seatLayout.model";
+import mongoose from "mongoose";
+
+export const SeatBookEmitter = new EventEmitter();
+
+SeatBookEmitter.on("reserve-seat", async (data) => {
+  try {
+    const { seatIds, event, ticketId, user } = data;
+
+    const layoutDoc = await SeatLayout.findOne({ event });
+
+    if (!layoutDoc) {
+      console.error("Seat layout not found for event:", event);
+      return;
+    }
+
+    let updated = false;
+
+    layoutDoc.seatLayout.forEach((section: any) => {
+      if (String(section.ticketType) !== String(ticketId)) return;
+
+      section.rows.forEach((row: any) => {
+        // console.log("row::", row);
+        row.seats.forEach((seat: any) => {
+            // console.log("row::", seat);
+          const seatIdStr = String(seat._id);
+          console.log("seatIdStr::", seatIds, seatIdStr, seatIds.includes(seatIdStr));
+          if (seatIds.includes(seatIdStr)) {
+            if (!seat.isBooked) {
+              seat.isBooked = true;
+              seat.user = new mongoose.Types.ObjectId(user);
+              updated = true;
+            } else {
+              console.warn(`Seat ${seatIdStr} is already booked.`);
+            }
+          }
+        });
+      });
+    });
+
+    if (updated) {
+      await layoutDoc.save();
+      console.log("✅ Seats reserved successfully.");
+    } else {
+      console.warn(
+        "⚠️ No seats were updated. Possibly already booked or mismatched IDs."
+      );
+    }
+  } catch (error) {
+    console.error("❌ Error reserving seats:", error);
+  }
+});
