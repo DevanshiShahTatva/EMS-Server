@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { validateAdminToken } from "../middlewares/checkToken";
 import {
+  getAllUsers,
   topLikedEvents,
   dashboardOverview,
   totalRevenue,
@@ -39,4 +40,6 @@ dashboardRoutes.get("/feedback-analytics/:id",validateAdminToken,getEventFeedbac
 dashboardRoutes.get("/feedback-overview",validateAdminToken, getFeedbackOverviewRatings);
 dashboardRoutes.get("/feedback-details",validateAdminToken, getEventOverviewFeedback);
 dashboardRoutes.get("/feedback-all-feedbacks",validateAdminToken,getOverallFeedbackDistribution);
+dashboardRoutes.get("/all-user-list", validateAdminToken, getAllUsers);
+
 export default dashboardRoutes;

@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { ApiResponse, throwError } from "../helper/common";
+import { ApiResponse, throwError, getUserIdFromToken } from "../helper/common";
 import Event from "../models/event.model";
 import TicketBook from "../models/eventBooking.model";
 import {
@@ -21,7 +21,7 @@ export const dashboardOverview = async (req: Request, res: Response) => {
     const [totalUsers, totalRevenueResult, totalEvents, totalLocationsResult] =
       await Promise.all([
         // Total Users
-        User.countDocuments(),
+        User.countDocuments({ role: "user" }),
 
         // Total Revenue
         TicketBook.aggregate([
@@ -403,19 +403,19 @@ export const bookingsByTicketType = async (_req: Request, res: Response) => {
           let: { ticketId: "$_id" },
           pipeline: [
             { $unwind: "$tickets" },
-            { 
-              $match: { 
-                $expr: { 
-                  $eq: ["$tickets._id", { $toObjectId: "$$ticketId" }] 
-                } 
-              } 
+            {
+              $match: {
+                $expr: {
+                  $eq: ["$tickets._id", { $toObjectId: "$$ticketId" }]
+                }
+              }
             },
-            { 
-              $project: { 
+            {
+              $project: {
                 ticketTypeId: "$tickets.type",  // Ensure we're using the correct field
                 totalSeats: "$tickets.totalSeats",
                 totalBooked: "$tickets.totalBookedSeats"
-              } 
+              }
             }
           ],
           as: "ticketInfo"
@@ -440,10 +440,10 @@ export const bookingsByTicketType = async (_req: Request, res: Response) => {
           totalSeats: { $sum: "$ticketInfo.totalSeats" },
           totalBooked: { $sum: "$ticketInfo.totalBooked" },
           // Calculate available seats from the summed values
-          seatsAvailable: { 
-            $sum: { 
-              $subtract: ["$ticketInfo.totalSeats", "$ticketInfo.totalBooked"] 
-            } 
+          seatsAvailable: {
+            $sum: {
+              $subtract: ["$ticketInfo.totalSeats", "$ticketInfo.totalBooked"]
+            }
           }
         }
       },
@@ -761,7 +761,7 @@ export const topAttendedEvents = async (req: Request, res: Response) => {
       }
     }
 
-   const pipeline: any[] = [
+    const pipeline: any[] = [
       {
         $group: {
           _id: "$event",
@@ -985,8 +985,8 @@ export const getEventFeedbackDistribution = async (
     let startDate: Date, endDate: Date, currentReference: string;
 
     if (period === "overall") {
-      startDate = new Date(0); 
-      endDate = new Date();   
+      startDate = new Date(0);
+      endDate = new Date();
       currentReference = "overall";
     } else {
       ({ startDate, endDate, currentReference } = getDateRange(period, reference!));
@@ -1050,10 +1050,10 @@ export const getFeedbackOverviewRatings = async (
       period === 'yearly'
         ? (parseInt(currentReference) - 1).toString()
         : (() => {
-            const [y, m] = currentReference.split('-').map(Number);
-            const prevDate = new Date(y, m - 2); 
-            return `${prevDate.getFullYear()}-${(prevDate.getMonth() + 1).toString().padStart(2, '0')}`;
-          })();
+          const [y, m] = currentReference.split('-').map(Number);
+          const prevDate = new Date(y, m - 2);
+          return `${prevDate.getFullYear()}-${(prevDate.getMonth() + 1).toString().padStart(2, '0')}`;
+        })();
 
     const { startDate: prevStart, endDate: prevEnd } = getDateRange(period, previousReference);
 
@@ -1166,7 +1166,7 @@ export const getEventOverviewFeedback = async (req: Request, res: Response) => {
       totalFeedbacks: statsMap[event._id.toString()]?.totalFeedbacks || 0,
       averageRating: statsMap[event._id.toString()]?.averageRating || 0
     }));
-    result.sort((a,b)=>b.averageRating - a.averageRating);
+    result.sort((a, b) => b.averageRating - a.averageRating);
     rcResponse.data = result;
     return res.status(200).json(rcResponse);
   } catch (error) {
@@ -1233,3 +1233,22 @@ export const getOverallFeedbackDistribution = async (
     return throwError(res);
   }
 };
+
+export const getAllUsers = async (req: Request, res: Response) => {
+  try {
+    const rcResponse = new ApiResponse();
+    const userId = getUserIdFromToken(req);
+    const users = await User.find(
+      {
+        _id: { $ne: userId },
+        role: { $nin: ["admin", "organizer"] }
+      },
+      { name: 1, 'profileimage.url': 1 }
+    );
+    rcResponse.data = users;
+    res.status(rcResponse.status).send(rcResponse);
+  } catch (err) {
+    console.log("Err:" + err);
+    return throwError(res);
+  }
+}

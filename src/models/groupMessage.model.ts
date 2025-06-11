@@ -27,7 +27,7 @@ const groupMessageSchema = new mongoose.Schema({
   isSystemMessage: { type: Boolean, index: true },
   systemMessageType: {
     type: String,
-    enum: ['user_joined', 'user_left', 'group_created'],
+    enum: ['user_joined', 'user_left', 'user_added', 'user_removed'],
     required: function (this: any) {
       return this.isSystemMessage;
     }
