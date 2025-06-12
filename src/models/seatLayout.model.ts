@@ -1,9 +1,16 @@
 import mongoose, { Schema } from "mongoose";
 import { ITicketType } from "./ticketType.model";
 
+interface ISeat {
+  seatNumber: string;
+  isUsed: boolean;
+  isBooked?: boolean;
+  user?: mongoose.Types.ObjectId;
+}
+
 interface ISeatRows {
   row: string;
-  seats: [{ seatNumber: string; isUsed: boolean }];
+  seats: ISeat[];
 }
 
 interface ISeatLayout {
@@ -25,8 +32,15 @@ const SeatLayoutSchema = new Schema<ISeatLayout>({
   rows: {
     type: [
       {
-        row: String,
-        seats: [{ seatNumber: String, isUsed: Boolean }],
+        row: { type: String, required: true },
+        seats: [
+          {
+            seatNumber: { type: String, required: true },
+            isUsed: { type: Boolean, default: false },
+            isBooked: { type: Boolean, default: false },
+            user: { type: Schema.Types.ObjectId, ref: "User", default: null },
+          },
+        ],
       },
     ],
     default: [],
@@ -37,7 +51,7 @@ const seatLayoutSchema = new mongoose.Schema({
   event: {
     type: Schema.Types.ObjectId,
     ref: "Event",
-    require: true
+    required: true,
   },
   seatLayout: {
     type: [SeatLayoutSchema],

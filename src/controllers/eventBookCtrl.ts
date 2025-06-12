@@ -19,6 +19,7 @@ import GroupChat from "../models/groupChat.model";
 import { io } from "../server";
 import GroupMessage from "../models/groupMessage.model";
 import { sendNotification } from "../services/notificationService";
+import { SeatBookEmitter } from "../services/seatBookService";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-08-16" as any,
@@ -44,8 +45,12 @@ export const postTicketBook = async (req: Request, res: any) => {
     session.startTransaction();
 
     const rcResponse = new ApiResponse();
-    const { eventId, ticketId, seats, totalAmount, discount, paymentId, usedPoints, voucherId } =
+    const { eventId, ticketId, seats, totalAmount, discount, paymentId, usedPoints, voucherId, selectedSeats } =
       req.body;
+
+    const parsedSeats = JSON.parse(selectedSeats);
+
+    const selectedSeatIds = parsedSeats.map((seat: { id: string }) => seat.id);
 
     // find user from token
     const user = getUserIdFromToken(req);
@@ -127,6 +132,7 @@ export const postTicketBook = async (req: Request, res: any) => {
           totalAmount,
           paymentId,
           discount: discount || 0,
+          selectedSeatsNumbers: parsedSeats,
           cancellationCharge: getCharges.charge
         },
       ],
@@ -219,6 +225,15 @@ export const postTicketBook = async (req: Request, res: any) => {
     await session.commitTransaction();
     session.endSession();
 
+    // Reservce Seat
+    SeatBookEmitter.emit("reserve-seat", {
+      seats: selectedSeatIds,
+      user: user,
+      event: eventId,
+      ticketId: selectedTicket.type._id,
+      res: res
+    });
+
     // EMAIL SERVICE
     if (process.env.SEND_EMAILS === "true") {
       try {
@@ -281,6 +296,8 @@ export const postTicketBook = async (req: Request, res: any) => {
     rcResponse.message = "Ticket booked successfully.";
     return res.status(rcResponse.status).send(rcResponse);
   } catch (error: any) {
+
+    console.log("error::", error);
     await session.abortTransaction();
     session.endSession();
 
@@ -452,6 +469,17 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
         });
       });
     }
+
+    const seats = booking.selectedSeatsNumbers.map((seat: any) => seat.id);
+
+    // revert reserve booked seat
+    SeatBookEmitter.emit("revert-reserve-seat", {
+      seats: seats,
+      user: userId,
+      event: event._id,
+      ticketId: ticketType.type,
+      res: res
+    });
 
     await session.commitTransaction();
     return res.status(rcResponse.status).send(rcResponse);
