@@ -225,7 +225,7 @@ export const postTicketBook = async (req: Request, res: any) => {
       seats: JSON.parse(selectedSeats),
       user: user,
       event: eventId,
-      ticketId,
+      ticketId: selectedTicket.type._id,
       res: res
     });
 

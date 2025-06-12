@@ -6,7 +6,7 @@ export const SeatBookEmitter = new EventEmitter();
 
 SeatBookEmitter.on("reserve-seat", async (data) => {
   try {
-    const { seatIds, event, ticketId, user } = data;
+    const { seats, event, ticketId, user } = data;
 
     const layoutDoc = await SeatLayout.findOne({ event });
 
@@ -21,12 +21,9 @@ SeatBookEmitter.on("reserve-seat", async (data) => {
       if (String(section.ticketType) !== String(ticketId)) return;
 
       section.rows.forEach((row: any) => {
-        // console.log("row::", row);
         row.seats.forEach((seat: any) => {
-            // console.log("row::", seat);
           const seatIdStr = String(seat._id);
-          console.log("seatIdStr::", seatIds, seatIdStr, seatIds.includes(seatIdStr));
-          if (seatIds.includes(seatIdStr)) {
+          if (seats.includes(seatIdStr)) {
             if (!seat.isBooked) {
               seat.isBooked = true;
               seat.user = new mongoose.Types.ObjectId(user);
