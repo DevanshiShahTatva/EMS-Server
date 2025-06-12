@@ -51,7 +51,6 @@ export const postTicketBook = async (req: Request, res: any) => {
     const parsedSeats = JSON.parse(selectedSeats);
 
     const selectedSeatIds = parsedSeats.map((seat: { id: string }) => seat.id);
-    const selectedSeatNums = parsedSeats.map((seat: { seatNumber: string }) => seat.seatNumber);
 
     // find user from token
     const user = getUserIdFromToken(req);
@@ -133,7 +132,7 @@ export const postTicketBook = async (req: Request, res: any) => {
           totalAmount,
           paymentId,
           discount: discount || 0,
-          selectedSeatsNumbers: selectedSeatNums,
+          selectedSeatsNumbers: parsedSeats,
           cancellationCharge: getCharges.charge
         },
       ],
@@ -470,6 +469,17 @@ export const cancelBookedEvent = async (req: Request, res: Response) => {
         });
       });
     }
+
+    const seats = booking.selectedSeatsNumbers.map((seat: any) => seat.id);
+
+    // revert reserve booked seat
+    SeatBookEmitter.emit("revert-reserve-seat", {
+      seats: seats,
+      user: userId,
+      event: event._id,
+      ticketId: ticketType.type,
+      res: res
+    });
 
     await session.commitTransaction();
     return res.status(rcResponse.status).send(rcResponse);
