@@ -8,6 +8,7 @@ interface GroupMessageData {
   groupId: string;
   type: 'text' | 'image';
   content: string;
+  imageId?: string;
 }
 
 interface IEditMessage {
@@ -106,7 +107,7 @@ export default function groupChatHandlers(io: Server, socket: AuthenticatedSocke
     }
   };
 
-  const handleGroupMessage = async ({ groupId, type, content }: GroupMessageData) => {
+  const handleGroupMessage = async ({ groupId, type, content, imageId }: GroupMessageData) => {
     if (!socket.userId || !content) {
       socket.emit('error', 'Invalid message data');
       return;
@@ -132,6 +133,7 @@ export default function groupChatHandlers(io: Server, socket: AuthenticatedSocke
         group: groupId,
         content: content,
         msgType: type || 'text',
+        imageId: type === 'image' ? imageId : "",
         readBy: [socket.userId]
       });
 
@@ -177,7 +179,7 @@ export default function groupChatHandlers(io: Server, socket: AuthenticatedSocke
         .select('members lastMessage')
         .populate({
           path: 'lastMessage',
-          select: 'sender content status msgType createdAt',
+          select: 'sender content status imageId createdAt',
           populate: {
             path: 'sender',
             select: '_id name'
@@ -253,6 +255,8 @@ export default function groupChatHandlers(io: Server, socket: AuthenticatedSocke
           {
             status: status,
             content: newContent.trim(),
+            imageId: status === 'deleted' ? "" : undefined,
+            msgType: status === 'deleted' ? 'text' : undefined,
           },
           { new: true, session }
         );

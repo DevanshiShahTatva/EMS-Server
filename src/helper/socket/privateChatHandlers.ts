@@ -4,6 +4,13 @@ import { AuthenticatedSocket } from '.';
 import PrivateChat from '../../models/privateChat.model';
 import PrivateMessage from '../../models/privateMessage.model';
 
+interface IMessage {
+  chatId: string;
+  content: string;
+  imageId?: string;
+  type: 'text' | 'image';
+}
+
 interface IEditMessage {
   chatId: string;
   messageId: string;
@@ -56,7 +63,7 @@ export default function privateChatHandlers(io: Server, socket: AuthenticatedSoc
     }
   };
 
-  const privateMessageHandler = async ({ chatId, type, content }: { chatId: string, type: 'text' | 'image', content: string }) => {
+  const privateMessageHandler = async ({ chatId, type, content, imageId }: IMessage) => {
     if (!socket.userId || !content) {
       socket.emit('error', 'Invalid message data');
       return;
@@ -90,6 +97,7 @@ export default function privateChatHandlers(io: Server, socket: AuthenticatedSoc
         privateChat: chatId,
         content: content,
         msgType: type || 'text',
+        imageId: type === 'image' ? imageId : "",
         readBy: [socket.userId]
       });
 
@@ -129,7 +137,7 @@ export default function privateChatHandlers(io: Server, socket: AuthenticatedSoc
         .select('senderUnreadCount receiverUnreadCount lastMessage')
         .populate({
           path: 'lastMessage',
-          select: 'sender content msgType status createdAt',
+          select: 'sender content msgType imageId status createdAt',
           populate: { path: 'sender', select: '_id name' }
         })
         .lean();
@@ -196,7 +204,9 @@ export default function privateChatHandlers(io: Server, socket: AuthenticatedSoc
           },
           {
             status: status,
-            content: newContent.trim(),
+            content: newContent,
+            imageId: status === 'deleted' ? "" : undefined,
+            msgType: status === 'deleted' ? 'text' : undefined,
           },
           { new: true, session }
         );

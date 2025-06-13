@@ -15,6 +15,7 @@ import {
   singleUserCreation,
   deleteUser,
   uploadChatImage,
+  removeChatImage,
 } from "../controllers/authUserCtrl";
 import { validateAdminToken, validateToken } from "../middlewares/checkToken";
 import multer from "multer";
@@ -44,7 +45,10 @@ authRoutes.put("/verify_setting_email", validateToken, settingVerifyEmail);
 authRoutes.get("/all_users", validateAdminToken, getAllUsers);
 
 // Upload chat image
-authRoutes.post("/chat/upload", validateToken, upload.single("image"), uploadChatImage);
+authRoutes.post("/chat/image-upload", validateToken, upload.single("image"), uploadChatImage);
+
+// remove chat image
+authRoutes.delete("/chat/remove-image", validateToken, upload.single("image"), removeChatImage);
 
 // Bulk User Upload
 authRoutes.post("/admin/bulk-uploads", validateAdminToken, upload.single("file"), bulkUsersUpload)

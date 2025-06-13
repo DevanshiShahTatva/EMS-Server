@@ -18,6 +18,7 @@ const groupMessageSchema = new mongoose.Schema({
     index: true
   },
   content: { type: String, required: true, trim: true },
+  imageId: { type: String },
   msgType: {
     type: String,
     enum: ['text', 'image']
