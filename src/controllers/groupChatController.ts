@@ -323,10 +323,14 @@ export const removeMemberFromGroup = async (req: Request, res: Response) => {
     await systemMessage.save();
 
     if (io) {
-      io.to(groupId).emit('group_member_removed', {
-        groupId,
-        removedMemberId: memberId,
-        groupName: group.event?.title ?? "",
+      group.members.forEach((member: any) => {
+        if (member.user.toString() !== adminId) {
+          io.to(member.user.toString()).emit('group_member_removed', {
+            groupId,
+            removedMemberId: memberId,
+            groupName: group.event?.title ?? "",
+          });
+        }
       });
 
       io.to(groupId).emit('receive_group_message', { message: [systemMessage], isSystemMsg: true });
