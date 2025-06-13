@@ -54,7 +54,7 @@ export const privateChatList = async (req: Request, res: Response) => {
               }
             },
             { $unwind: "$sender" },
-            { $project: { content: 1, createdAt: 1, sender: 1 } }
+            { $project: { msgType: 1, content: 1, createdAt: 1, sender: 1 } }
           ]
         }
       },
@@ -109,6 +109,7 @@ export const privateChatList = async (req: Request, res: Response) => {
       unreadCount: chat.unreadCount ?? 0,
       senderId: chat.lastMessage?.sender?._id ?? null,
       status: chat.lastMessage?.status ?? "",
+      msgType: chat.lastMessage?.msgType ?? 'text',
       lastMessage: chat.lastMessage?.content ?? null,
       lastMessageSender: chat.lastMessage?.sender?.name ?? null,
       lastMessageTime: chat.lastMessage?.createdAt ?? null,

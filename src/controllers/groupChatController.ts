@@ -131,6 +131,7 @@ export const groupChatList = async (req: Request, res: Response) => {
         avatar: member.profileimage?.url ?? null
       })),
       unreadCount: group.unreadCount,
+      msgType: group.lastMessage?.msgType ?? 'text',
       icon: group.event?.images?.[0]?.url ?? null,
       senderId: group.lastMessage?.sender?._id ?? null,
       status: group.lastMessage?.status ?? "",

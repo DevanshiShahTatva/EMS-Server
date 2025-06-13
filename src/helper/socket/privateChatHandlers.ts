@@ -56,8 +56,8 @@ export default function privateChatHandlers(io: Server, socket: AuthenticatedSoc
     }
   };
 
-  const privateMessageHandler = async ({ chatId, content }: { chatId: string, content: string }) => {
-    if (!socket.userId || !content.trim()) {
+  const privateMessageHandler = async ({ chatId, type, content }: { chatId: string, type: 'text' | 'image', content: string }) => {
+    if (!socket.userId || !content) {
       socket.emit('error', 'Invalid message data');
       return;
     }
@@ -88,7 +88,8 @@ export default function privateChatHandlers(io: Server, socket: AuthenticatedSoc
       const message = new PrivateMessage({
         sender: socket.userId,
         privateChat: chatId,
-        content: content.trim(),
+        content: content,
+        msgType: type || 'text',
         readBy: [socket.userId]
       });
 
@@ -128,7 +129,7 @@ export default function privateChatHandlers(io: Server, socket: AuthenticatedSoc
         .select('senderUnreadCount receiverUnreadCount lastMessage')
         .populate({
           path: 'lastMessage',
-          select: 'sender content status createdAt',
+          select: 'sender content msgType status createdAt',
           populate: { path: 'sender', select: '_id name' }
         })
         .lean();
@@ -136,8 +137,9 @@ export default function privateChatHandlers(io: Server, socket: AuthenticatedSoc
       io.to(otherUserId.toString()).emit('unread_update', {
         type: 'private',
         chatId,
-        senderId: updatedChat.lastMessage?.sender?._id ?? null,
         status: updatedChat.lastMessage?.status ?? "",
+        msgType: updatedChat.lastMessage?.msgType ?? 'text',
+        senderId: updatedChat.lastMessage?.sender?._id ?? null,
         lastMessageSender: updatedChat.lastMessage?.sender?.name ?? null,
         lastMessage: updatedChat.lastMessage?.content ?? null,
         lastMessageTime: updatedChat.lastMessage?.createdAt ?? null,

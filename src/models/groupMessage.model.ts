@@ -18,6 +18,10 @@ const groupMessageSchema = new mongoose.Schema({
     index: true
   },
   content: { type: String, required: true, trim: true },
+  msgType: {
+    type: String,
+    enum: ['text', 'image']
+  },
   status: {
     type: String,
     enum: ['edited', 'deleted'],

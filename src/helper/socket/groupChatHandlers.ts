@@ -6,6 +6,7 @@ import { AuthenticatedSocket } from '.';
 
 interface GroupMessageData {
   groupId: string;
+  type: 'text' | 'image';
   content: string;
 }
 
@@ -105,8 +106,8 @@ export default function groupChatHandlers(io: Server, socket: AuthenticatedSocke
     }
   };
 
-  const handleGroupMessage = async ({ groupId, content }: GroupMessageData) => {
-    if (!socket.userId || !content?.trim()) {
+  const handleGroupMessage = async ({ groupId, type, content }: GroupMessageData) => {
+    if (!socket.userId || !content) {
       socket.emit('error', 'Invalid message data');
       return;
     }
@@ -129,7 +130,8 @@ export default function groupChatHandlers(io: Server, socket: AuthenticatedSocke
       const message = new GroupMessage({
         sender: socket.userId,
         group: groupId,
-        content: content.trim(),
+        content: content,
+        msgType: type || 'text',
         readBy: [socket.userId]
       });
 
@@ -175,7 +177,7 @@ export default function groupChatHandlers(io: Server, socket: AuthenticatedSocke
         .select('members lastMessage')
         .populate({
           path: 'lastMessage',
-          select: 'sender content status createdAt',
+          select: 'sender content status msgType createdAt',
           populate: {
             path: 'sender',
             select: '_id name'
@@ -192,6 +194,7 @@ export default function groupChatHandlers(io: Server, socket: AuthenticatedSocke
             type: 'group',
             chatId: groupId,
             unreadCount: member.unreadCount,
+            msgType: updatedGroup.lastMessage?.msgType ?? 'text',
             senderId: updatedGroup.lastMessage?.sender?._id ?? null,
             status: updatedGroup.lastMessage?.status ?? "",
             lastMessageSender: updatedGroup.lastMessage?.sender?.name ?? null,

@@ -324,6 +324,23 @@ export const getAllUsers = async (req: Request, res: Response) => {
   }
 };
 
+export const uploadChatImage = async (req: Request, res: Response) => {
+  try {
+    const file = req.file as Express.Multer.File;
+
+    if (!file) {
+      return throwError(res, "No file uploaded.", HTTP_STATUS_CODE.BAD_REQUEST);
+    }
+
+    const imageObj = await saveFileToCloud(file);
+
+    return res.status(200).send({ imageObj });
+
+  } catch (error) {
+    return throwError(res, "File upload failed", HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR);
+  }
+}
+
 export const bulkUsersUpload = async ( req: Request, res: Response) => {
   try {
     const rcResponse = new ApiResponse()

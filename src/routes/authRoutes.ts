@@ -14,6 +14,7 @@ import {
   bulkUsersUpload,
   singleUserCreation,
   deleteUser,
+  uploadChatImage,
 } from "../controllers/authUserCtrl";
 import { validateAdminToken, validateToken } from "../middlewares/checkToken";
 import multer from "multer";
@@ -41,6 +42,9 @@ authRoutes.put("/verify_setting_email", validateToken, settingVerifyEmail);
 
 // ADMIN ONLY
 authRoutes.get("/all_users", validateAdminToken, getAllUsers);
+
+// Upload chat image
+authRoutes.post("/chat/upload", validateToken, upload.single("image"), uploadChatImage);
 
 // Bulk User Upload
 authRoutes.post("/admin/bulk-uploads", validateAdminToken, upload.single("file"), bulkUsersUpload)
