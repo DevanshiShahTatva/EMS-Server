@@ -16,6 +16,11 @@ const privateMessageSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
+  imageId: { type: String },
+  msgType: {
+    type: String,
+    enum: ['text', 'image']
+  },
   status: {
     type: String,
     enum: ['edited', 'deleted']

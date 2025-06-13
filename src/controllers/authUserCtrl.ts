@@ -114,7 +114,7 @@ export const registerUser = async (req: Request, res: Response) => {
 
     // send notification for update email
     const findAdminUser = await User.findOne({ role: "admin" });
-    if(findAdminUser) {
+    if (findAdminUser) {
       setImmediate(() => {
         sendNotification(findAdminUser._id, {
           title: `New ${body.role} register`,
@@ -240,7 +240,7 @@ export const forgotPassword = async (req: Request, res: any) => {
     );
     rcResponse.data = { email: email };
     await sendOtpToEmail(email, otp, findUser.name);
-    
+
     rcResponse.message = "Otp send successfully to your email";
     return res.status(rcResponse.status).send(rcResponse);
   } catch (err) {
@@ -324,12 +324,52 @@ export const getAllUsers = async (req: Request, res: Response) => {
   }
 };
 
-export const bulkUsersUpload = async ( req: Request, res: Response) => {
+export const uploadChatImage = async (req: Request, res: Response) => {
+  try {
+    const file = req.file as Express.Multer.File;
+
+    if (!file) {
+      return throwError(res, "No file uploaded.", HTTP_STATUS_CODE.BAD_REQUEST);
+    }
+
+    const imageObj = await saveFileToCloud(file);
+
+    return res.status(200).send({ imageObj });
+
+  } catch (err) {
+    console.log("Err:" + err);
+    return throwError(res, "File upload failed", HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR);
+  }
+}
+
+export const removeChatImage = async (req: Request, res: Response) => {
+  try {
+    const { imageId } = req.query;
+
+    if (!imageId) {
+      return throwError(res, "No imageId found!", HTTP_STATUS_CODE.BAD_REQUEST);
+    }
+    try {
+      await deleteFromCloudinary(imageId as string);
+    } catch (err) {
+      console.log("Err:", err);
+      return throwError(res, "Failed to delete image from Cloudinary", HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR);
+    }
+
+    return res.status(200).send({ success: true });
+
+  } catch (err) {
+    console.log("Err:" + err);
+    return throwError(res, "Failed to delete image from Cloudinary", HTTP_STATUS_CODE.INTERNAL_SERVER_ERROR);
+  }
+}
+
+export const bulkUsersUpload = async (req: Request, res: Response) => {
   try {
     const rcResponse = new ApiResponse()
     const file = req.file;
 
-    if (!file) return throwError(res,  "No file uploaded.", HTTP_STATUS_CODE.BAD_REQUEST)
+    if (!file) return throwError(res, "No file uploaded.", HTTP_STATUS_CODE.BAD_REQUEST)
 
     const ext = path.extname(file.originalname);
     let jsonArray: any[] = [];
@@ -352,7 +392,7 @@ export const bulkUsersUpload = async ( req: Request, res: Response) => {
     for (const item of jsonArray) {
       const { name, email, role } = item;
       const errorObj: any = {};
-      const emailRegex =/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+      const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
       if (!name || name.trim() === "") errorObj.name = "Name cannot be blank";
       if (!email || !emailRegex.test(email)) errorObj.email = "Valid Email required";
@@ -423,24 +463,24 @@ export const bulkUsersUpload = async ( req: Request, res: Response) => {
     return res.status(rcResponse.status).send(rcResponse);
 
   } catch (error) {
-     return throwError(res);
+    return throwError(res);
   }
 }
 
-export const singleUserCreation = async ( req: Request, res: Response) => {
+export const singleUserCreation = async (req: Request, res: Response) => {
   try {
     const rcResponse = new ApiResponse()
     const { name, email, role } = req.body;
-    const emailRegex =/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-    
-    if(!name || !email || !role) return throwError(res,  "All fields are required.", HTTP_STATUS_CODE.BAD_REQUEST)
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
-    if(name.trim() === "") return throwError(res,  "name can not be blank.", HTTP_STATUS_CODE.BAD_REQUEST)
-    if(!["user", "organizer"].includes(role)) return throwError(res,  "Role must be 'user' or 'organizer'.", HTTP_STATUS_CODE.BAD_REQUEST)
-    if(!emailRegex.test(email)) return throwError(res,  "Invalid Email Address", HTTP_STATUS_CODE.BAD_REQUEST)
+    if (!name || !email || !role) return throwError(res, "All fields are required.", HTTP_STATUS_CODE.BAD_REQUEST)
+
+    if (name.trim() === "") return throwError(res, "name can not be blank.", HTTP_STATUS_CODE.BAD_REQUEST)
+    if (!["user", "organizer"].includes(role)) return throwError(res, "Role must be 'user' or 'organizer'.", HTTP_STATUS_CODE.BAD_REQUEST)
+    if (!emailRegex.test(email)) return throwError(res, "Invalid Email Address", HTTP_STATUS_CODE.BAD_REQUEST)
 
     const existing = await User.findOne({ email });
-    if (existing) return throwError(res,  "Email already exists", HTTP_STATUS_CODE.BAD_REQUEST);
+    if (existing) return throwError(res, "Email already exists", HTTP_STATUS_CODE.BAD_REQUEST);
 
     const session = await mongoose.startSession();
     session.startTransaction();
@@ -483,7 +523,7 @@ export const singleUserCreation = async ( req: Request, res: Response) => {
       throw err;
     }
 
-  // Return unified response
+    // Return unified response
     rcResponse.message = "User Created Successfully";
     return res.status(rcResponse.status).send(rcResponse);
   } catch (error) {
@@ -616,7 +656,7 @@ export const settingResetEmail = async (req: Request, res: Response) => {
       { session }
     );
 
-    
+
     await session.commitTransaction();
 
     // MAIL SERVICE
@@ -786,15 +826,15 @@ export const updateUser = async (req: Request, res: Response) => {
 
 export const deleteUser = async (req: Request, res: Response) => {
   try {
-     const rcResponse = new ApiResponse();
-     const { id } = req.params
+    const rcResponse = new ApiResponse();
+    const { id } = req.params
 
-     // Check if userId is a valid ObjectId
+    // Check if userId is a valid ObjectId
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return throwError(res, "Invalid user id", HTTP_STATUS_CODE.BAD_REQUEST)
     }
 
-     // Check for any active bookings
+    // Check for any active bookings
     const hasBooking = await TicketBook.exists({ user: id });
 
     if (hasBooking) {
@@ -812,6 +852,6 @@ export const deleteUser = async (req: Request, res: Response) => {
     rcResponse.message = "User deleted successfully.";
     return res.status(rcResponse.status).send(rcResponse);
   } catch (error) {
-     return throwError(res);
+    return throwError(res);
   }
 }
