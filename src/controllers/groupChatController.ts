@@ -249,7 +249,6 @@ export const addMembersInGroup = async (req: Request, res: Response) => {
         adminId,
         userId: user._id
       },
-      readBy: [adminId]
     }));
 
     await GroupMessage.insertMany(systemMessages);
@@ -318,7 +317,6 @@ export const removeMemberFromGroup = async (req: Request, res: Response) => {
         adminId,
         userId: memberToRemove._id
       },
-      readBy: [adminId],
     });
 
     await systemMessage.save();

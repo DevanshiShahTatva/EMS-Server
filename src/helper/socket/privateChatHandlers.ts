@@ -98,7 +98,6 @@ export default function privateChatHandlers(io: Server, socket: AuthenticatedSoc
         content: content,
         msgType: type || 'text',
         imageId: type === 'image' ? imageId : "",
-        readBy: [socket.userId]
       });
 
       const savedMessage = await message.save({ session });

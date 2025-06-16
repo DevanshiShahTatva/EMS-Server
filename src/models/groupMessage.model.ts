@@ -28,7 +28,6 @@ const groupMessageSchema = new mongoose.Schema({
     enum: ['edited', 'deleted'],
     index: true
   },
-  readBy: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   isSystemMessage: { type: Boolean, index: true },
   systemMessageType: {
     type: String,

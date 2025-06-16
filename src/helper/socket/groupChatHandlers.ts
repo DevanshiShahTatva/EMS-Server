@@ -82,7 +82,6 @@ export default function groupChatHandlers(io: Server, socket: AuthenticatedSocke
         systemMessageType: 'user_left',
         content: `${socket?.userName ?? 'User'} left`,
         systemMessageData: { userId: socket.userId },
-        readBy: [socket.userId],
       });
       await systemMessage.save();
 
@@ -134,7 +133,6 @@ export default function groupChatHandlers(io: Server, socket: AuthenticatedSocke
         content: content,
         msgType: type || 'text',
         imageId: type === 'image' ? imageId : "",
-        readBy: [socket.userId]
       });
 
       let savedMessage = await message.save({ session });
@@ -179,7 +177,7 @@ export default function groupChatHandlers(io: Server, socket: AuthenticatedSocke
         .select('members lastMessage')
         .populate({
           path: 'lastMessage',
-          select: 'sender content status imageId createdAt',
+          select: 'sender content status msgType imageId createdAt',
           populate: {
             path: 'sender',
             select: '_id name'

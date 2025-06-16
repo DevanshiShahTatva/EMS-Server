@@ -207,7 +207,6 @@ export const postTicketBook = async (req: Request, res: any) => {
         systemMessageData: { userId },
         systemMessageType: 'user_joined',
         content: `${newMember?.name ?? "New user"} joined`,
-        readBy: [userId]
       });
       await systemMessage.save({ session });
 
